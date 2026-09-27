@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "400141879200",
+    "project_id": "com-example-hallc-93786",
+    "storage_bucket": "com-example-hallc-93786.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400141879200:android:3fd406f9b385d8b01b06c5",
+        "android_client_info": {
+          "package_name": "com.example.classroom_hub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyJw-Xno1exZiv6gK94E7uYYeuH29aINU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400141879200:android:94d0a26e84cdb9901b06c5",
+        "android_client_info": {
+          "package_name": "com.example.hallc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyJw-Xno1exZiv6gK94E7uYYeuH29aINU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
