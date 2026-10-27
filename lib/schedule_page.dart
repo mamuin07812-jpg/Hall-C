@@ -22,11 +22,14 @@ class SchedulePage extends StatelessWidget {
 
   String _normalizeDepartment(String value) {
     final v = value.trim();
+    final lower = v.toLowerCase();
 
-    if (v == 'قسم اللغة الانكليزية' ||
-        v == 'قسم اللغة الإنجليزية' ||
-        v == 'اللغة الانكليزية' ||
-        v == 'اللغة الإنجليزية') {
+    if (lower.contains('english') ||
+        v.contains('اللغة الانكليزية') ||
+        v.contains('اللغة الإنكليزية') ||
+        v.contains('اللغة الإنجليزية') ||
+        v.contains('لغة انجليزية') ||
+        v.contains('لغة إنكليزية')) {
       return 'English Language Department';
     }
 
@@ -35,35 +38,25 @@ class SchedulePage extends StatelessWidget {
 
   String _normalizeStage(String value) {
     final v = value.trim();
+    final lower = v.toLowerCase();
 
-    switch (v) {
-      case 'المرحلة الأولى':
-      case 'المرحلة الاولى':
-      case 'First':
-      case '1':
-        return 'First Stage';
-
-      case 'المرحلة الثانية':
-      case 'المرحلة الثانيه':
-      case 'Second':
-      case '2':
-        return 'Second Stage';
-
-      case 'المرحلة الثالثة':
-      case 'المرحلة الثالثه':
-      case 'Third':
-      case '3':
-        return 'Third Stage';
-
-      case 'المرحلة الرابعة':
-      case 'المرحلة الرابعه':
-      case 'Fourth':
-      case '4':
-        return 'Fourth Stage';
-
-      default:
-        return v;
+    if (lower.contains('first') || v == '1' ||
+        v.contains('المرحلة الأولى') || v.contains('المرحلة الاولى')) {
+      return 'First Stage';
     }
+    if (lower.contains('second') || v == '2' ||
+        v.contains('المرحلة الثانية') || v.contains('المرحلة الثانيه')) {
+      return 'Second Stage';
+    }
+    if (lower.contains('third') || v == '3' ||
+        v.contains('المرحلة الثالثة') || v.contains('المرحلة الثالثه')) {
+      return 'Third Stage';
+    }
+    if (lower.contains('fourth') || v == '4' ||
+        v.contains('المرحلة الرابعة') || v.contains('المرحلة الرابعه')) {
+      return 'Fourth Stage';
+    }
+    return v;
   }
 
   String _normalizeGroup(String value) {
