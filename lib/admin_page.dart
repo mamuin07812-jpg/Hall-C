@@ -3148,13 +3148,15 @@ class _ScheduleAdminPageState
     });
 
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      final snapshot = await _firestore
           .collection('schedules')
-          .where('dayAr', isEqualTo: _selectedDay);
-      if (widget.teacherMode) {
-        query = query.where('teacherId', isEqualTo: widget.teacherId);
-      }
-      final snapshot = await query.get();
+          .where('dayAr', isEqualTo: _selectedDay)
+          .get();
+      final scheduleDocuments = widget.teacherMode
+          ? snapshot.docs.where(
+              (document) => document.data()['teacherId'] == widget.teacherId,
+            ).toList()
+          : snapshot.docs;
 
       final newDocuments = <
           DocumentSnapshot<
@@ -3165,7 +3167,7 @@ class _ScheduleAdminPageState
               Map<String, dynamic>>>[];
 
       for (final document
-      in snapshot.docs) {
+      in scheduleDocuments) {
         final data =
         document.data();
 
@@ -3179,9 +3181,8 @@ class _ScheduleAdminPageState
         }
       }
 
-      if (newDocuments.isEmpty &&
-          legacyDocuments
-              .isNotEmpty) {
+      if (!widget.teacherMode && newDocuments.isEmpty &&
+          legacyDocuments.isNotEmpty) {
         await _migrateLegacyDay(
           legacyDocuments.first,
         );
@@ -3673,12 +3674,12 @@ class _ScheduleAdminPageState
   }) async {
     final subjectController =
     TextEditingController(
-      text: lecture?.subject ?? '',
+      text: lecture?.subject ?? (widget.teacherMode ? widget.teacherSubject ?? '' : ''),
     );
 
     final professorController =
     TextEditingController(
-      text: lecture?.professor ?? '',
+      text: lecture?.professor ?? (widget.teacherMode ? widget.teacherName ?? '' : ''),
     );
 
     final startController =
