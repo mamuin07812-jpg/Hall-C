@@ -3690,8 +3690,12 @@ class _ScheduleAdminPageState
       text: lecture?.end ?? '',
     );
 
-    final formKey =
-    GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
+    String selectedGroup = lecture?.group ?? 'A';
+    List<String> selectedHalls = List<String>.from(
+      lecture?.audienceHalls ?? const ['A'],
+    );
+    if (selectedGroup == 'ALL') selectedHalls = ['A', 'B', 'C', 'D'];
 
     return showDialog<
         _LectureFormResult>(
@@ -3769,8 +3773,52 @@ class _ScheduleAdminPageState
                           Icons.person_rounded,
                         ),
                       ),
-                      const SizedBox(
-                          height: 12),
+                      if (widget.teacherMode) ...[
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'استهداف الإشعار',
+                            style: const TextStyle(
+                              color: _textDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: selectedGroup,
+                          decoration: _inputDecoration(
+                            'القاعة المستهدفة',
+                            Icons.groups_rounded,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'A', child: Text('قاعة A')),
+                            DropdownMenuItem(value: 'B', child: Text('قاعة B')),
+                            DropdownMenuItem(value: 'C', child: Text('قاعة C')),
+                            DropdownMenuItem(value: 'D', child: Text('قاعة D')),
+                            DropdownMenuItem(value: 'ALL', child: Text('جميع القاعات A / B / C / D')),
+                          ],
+                          onChanged: saving ? null : (value) {
+                            if (value == null) return;
+                            setDialogState(() {
+                              selectedGroup = value;
+                              selectedHalls = value == 'ALL' ? ['A', 'B', 'C', 'D'] : [value];
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          selectedGroup == 'ALL'
+                              ? 'سيصل الإشعار إلى القاعات الأربع في قسمك ومرحلتك.'
+                              : 'سيصل الإشعار إلى القاعة $selectedGroup فقط ضمن قسمك ومرحلتك.',
+                          style: const TextStyle(
+                            color: _textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller:
                         startController,
@@ -3916,18 +3964,14 @@ class _ScheduleAdminPageState
                     Navigator.pop(
                       dialogContext,
                       _LectureFormResult(
-                        subject:
-                        subjectController
-                            .text
-                            .trim(),
-                        professor:
-                        professorController
-                            .text
-                            .trim(),
-                        start:
-                        start,
-                        end:
-                        end,
+                        subject: subjectController.text.trim(),
+                        professor: professorController.text.trim(),
+                        start: start,
+                        end: end,
+                        group: widget.teacherMode ? selectedGroup : (lecture?.group ?? 'A'),
+                        audienceHalls: widget.teacherMode
+                            ? List<String>.from(selectedHalls)
+                            : List<String>.from(lecture?.audienceHalls ?? const ['A']),
                       ),
                     );
                   },
