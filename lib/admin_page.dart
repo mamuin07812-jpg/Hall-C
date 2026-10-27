@@ -3418,10 +3418,10 @@ class _ScheduleAdminPageState
           result.professor,
           start:
           result.start,
-          end:
-          result.end,
-          order:
-          _lectures.length,
+          end: result.end,
+          order: _lectures.length,
+          group: result.group,
+          audienceHalls: List<String>.from(result.audienceHalls),
         ),
       );
 
@@ -3499,8 +3499,9 @@ class _ScheduleAdminPageState
           result.professor;
       lecture.start =
           result.start;
-      lecture.end =
-          result.end;
+      lecture.end = result.end;
+      lecture.group = result.group;
+      lecture.audienceHalls = List<String>.from(result.audienceHalls);
 
       _sortLectures();
 
