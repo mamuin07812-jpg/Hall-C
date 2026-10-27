@@ -50,12 +50,12 @@ function scheduleHall(value) {
 }
 
 exports.saveTeacherScheduleLecture = onCall(async (request) => {
-  const uid = request.auth?.uid;
+  const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in as a teacher first.');
 
   const teacherSnapshot = await db.collection('teachers').doc(uid).get();
-  const teacher = teacherSnapshot.data();
-  if (!teacherSnapshot.exists || String(teacher?.role || '').toLowerCase() !== 'teacher') {
+  const teacher = teacherSnapshot.exists ? teacherSnapshot.data() : null;
+  if (!teacherSnapshot.exists || String((teacher && teacher.role) || '').toLowerCase() !== 'teacher') {
     throw new HttpsError('permission-denied', 'A verified teacher account is required.');
   }
 
@@ -107,7 +107,8 @@ exports.saveTeacherScheduleLecture = onCall(async (request) => {
   if (documentId) {
     const ref = db.collection('schedules').doc(documentId);
     const existing = await ref.get();
-    if (!existing.exists || existing.data()?.teacherId !== uid) {
+    const existingData = existing.exists ? existing.data() : null;
+    if (!existing.exists || !existingData || existingData.teacherId !== uid) {
       throw new HttpsError('permission-denied', 'You can only edit lectures created by your own teacher account.');
     }
     await ref.update(nowFields);
