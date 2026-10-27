@@ -29,6 +29,14 @@ AndroidNotificationChannel(
   importance: Importance.high,
 );
 
+const AndroidNotificationChannel serverPushNotificationChannel =
+AndroidNotificationChannel(
+  'classroom_hub_notifications_v2',
+  'Schoolivia UN Updates',
+  description: 'Lecture additions and changes from Schoolivia UN',
+  importance: Importance.high,
+);
+
 StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
 _firestoreNotificationSubscription;
 
@@ -69,6 +77,12 @@ Future<void> _initializeLocalNotifications() async {
 
   await androidPlugin?.createNotificationChannel(
     notificationChannel,
+  );
+
+  // The server notification agent sends FCM messages on this exact channel ID.
+  // Create it before FCM messages arrive so Android can display them at high importance.
+  await androidPlugin?.createNotificationChannel(
+    serverPushNotificationChannel,
   );
 }
 
