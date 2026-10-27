@@ -3407,8 +3407,9 @@ class _ScheduleAdminPageState
           documentId: documentId,
           subject:
           result.subject,
-          professor:
-          result.professor,
+          professor: widget.teacherMode
+              ? widget.teacherName ?? result.professor
+              : result.professor,
           start:
           result.start,
           end: result.end,
@@ -3479,8 +3480,9 @@ class _ScheduleAdminPageState
 
       lecture.subject =
           result.subject;
-      lecture.professor =
-          result.professor;
+      lecture.professor = widget.teacherMode
+          ? widget.teacherName ?? result.professor
+          : result.professor;
       lecture.start =
           result.start;
       lecture.end = result.end;
@@ -4291,12 +4293,9 @@ class _ScheduleAdminPageState
                     lecture);
               }
             },
-            itemBuilder:
-                (_) =>
-            const [
-              PopupMenuItem(
-                value:
-                'edit',
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'edit',
                 child: Row(
                   children: [
                     Icon(
@@ -4311,25 +4310,21 @@ class _ScheduleAdminPageState
                   ],
                 ),
               ),
-              PopupMenuItem(
-                value:
-                'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons
-                          .delete_outline_rounded,
-                      color:
-                      _danger,
-                      size: 20,
-                    ),
-                    SizedBox(
-                        width: 8),
-                    Text(
-                        'حذف'),
-                  ],
+              if (!widget.teacherMode)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        color: _danger,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text('حذف'),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ],
