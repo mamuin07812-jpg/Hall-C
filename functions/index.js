@@ -31,7 +31,7 @@ function scheduleHall(value) {
  */
 function timeToMinutes(value) {
   const text = String(value || "").trim().toUpperCase();
-  const match12 = /^(\\d{1,2}):(\\d{2})\\s*(AM|PM)$/.exec(text);
+  const match12 = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/.exec(text);
   if (match12) {
     let hour = Number(match12[1]);
     const minute = Number(match12[2]);
@@ -40,7 +40,7 @@ function timeToMinutes(value) {
     if (match12[3] === "PM") hour += 12;
     return hour * 60 + minute;
   }
-  const match24 = /^(\\d{1,2}):(\\d{2})$/.exec(text);
+  const match24 = /^(\d{1,2}):(\d{2})$/.exec(text);
   if (!match24) return null;
   const hour = Number(match24[1]);
   const minute = Number(match24[2]);
