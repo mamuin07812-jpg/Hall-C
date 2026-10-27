@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -3368,51 +3369,42 @@ class _ScheduleAdminPageState
     if (result == null) return;
 
     try {
-      final reference =
-      await _firestore
-          .collection(
-        'schedules',
-      )
-          .add(
-        {
-          'dayAr':
-          _selectedDay,
-          'day':
-          _dayEnglish[
-          _selectedDay],
-          'subject':
-          result.subject,
-          'teacher':
-          result.professor,
-          'professor':
-          result.professor,
-          'startTime':
-          result.start,
-          'endTime':
-          result.end,
-          'start':
-          result.start,
-          'end':
-          result.end,
+      late final String documentId;
+      if (widget.teacherMode) {
+        final callable = FirebaseFunctions.instance.httpsCallable(
+          'saveTeacherScheduleLecture',
+        );
+        final response = await callable.call({
+          'dayAr': _selectedDay,
+          'subject': result.subject,
+          'start': result.start,
+          'end': result.end,
+          'group': result.group,
+          'audienceHalls': result.audienceHalls,
+        });
+        documentId = response.data['documentId']?.toString() ?? '';
+        if (documentId.isEmpty) {
+          throw StateError('The server did not return the saved lecture ID.');
+        }
+      } else {
+        final reference = await _firestore.collection('schedules').add({
+          'dayAr': _selectedDay,
+          'day': _dayEnglish[_selectedDay],
+          'subject': result.subject,
+          'teacher': result.professor,
+          'professor': result.professor,
+          'startTime': result.start,
+          'endTime': result.end,
+          'start': result.start,
+          'end': result.end,
           'order': _lectures.length,
-          if (widget.teacherMode) ...{
-            'teacherId': widget.teacherId,
-            'teacher': widget.teacherName ?? '',
-            'professor': result.professor,
-            'department': widget.department,
-            'stage': widget.stage,
-            'group': result.group,
-            'audienceHalls': result.audienceHalls,
-            'updatedAt': FieldValue.serverTimestamp(),
-            'createdAt': FieldValue.serverTimestamp(),
-          },
-        },
-      );
+        });
+        documentId = reference.id;
+      }
 
       _lectures.add(
         _AdminLecture(
-          documentId:
-          reference.id,
+          documentId: documentId,
           subject:
           result.subject,
           professor:
@@ -3458,41 +3450,32 @@ class _ScheduleAdminPageState
     if (result == null) return;
 
     try {
-      await _firestore
-          .collection('schedules')
-          .doc(lecture.documentId)
-          .update(
-        {
-          'dayAr':
-          _selectedDay,
-          'day':
-          _dayEnglish[
-          _selectedDay],
-          'subject':
-          result.subject,
-          'teacher':
-          result.professor,
-          'professor':
-          result.professor,
-          'startTime':
-          result.start,
-          'endTime':
-          result.end,
-          'start':
-          result.start,
+      if (widget.teacherMode) {
+        final callable = FirebaseFunctions.instance.httpsCallable(
+          'saveTeacherScheduleLecture',
+        );
+        await callable.call({
+          'documentId': lecture.documentId,
+          'dayAr': _selectedDay,
+          'subject': result.subject,
+          'start': result.start,
           'end': result.end,
-          if (widget.teacherMode) ...{
-            'teacherId': widget.teacherId,
-            'teacher': widget.teacherName ?? '',
-            'professor': result.professor,
-            'department': widget.department,
-            'stage': widget.stage,
-            'group': result.group,
-            'audienceHalls': result.audienceHalls,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-        },
-      );
+          'group': result.group,
+          'audienceHalls': result.audienceHalls,
+        });
+      } else {
+        await _firestore.collection('schedules').doc(lecture.documentId).update({
+          'dayAr': _selectedDay,
+          'day': _dayEnglish[_selectedDay],
+          'subject': result.subject,
+          'teacher': result.professor,
+          'professor': result.professor,
+          'startTime': result.start,
+          'endTime': result.end,
+          'start': result.start,
+          'end': result.end,
+        });
+      }
 
       lecture.subject =
           result.subject;
