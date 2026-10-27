@@ -3604,7 +3604,9 @@ class _ScheduleAdminPageState
   }
 
   Future<void> _updateOrders() async {
-    if (_lectures.isEmpty) return;
+    // Teacher writes are committed by the authenticated callable; avoid
+    // follow-up client writes that would require broader Firestore rules.
+    if (widget.teacherMode || _lectures.isEmpty) return;
 
     final batch =
     _firestore.batch();
