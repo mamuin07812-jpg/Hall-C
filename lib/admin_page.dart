@@ -3088,7 +3088,22 @@ class _PreparationsAdminPageState
 // ============================================================
 
 class ScheduleAdminPage extends StatefulWidget {
-  const ScheduleAdminPage({super.key});
+  final bool teacherMode;
+  final String? teacherId;
+  final String? teacherName;
+  final String? department;
+  final String? stage;
+  final String? teacherSubject;
+
+  const ScheduleAdminPage({
+    super.key,
+    this.teacherMode = false,
+    this.teacherId,
+    this.teacherName,
+    this.department,
+    this.stage,
+    this.teacherSubject,
+  });
 
   @override
   State<ScheduleAdminPage> createState() =>
@@ -3133,15 +3148,13 @@ class _ScheduleAdminPageState
     });
 
     try {
-      final snapshot =
-      await _firestore
+      Query<Map<String, dynamic>> query = _firestore
           .collection('schedules')
-          .where(
-        'dayAr',
-        isEqualTo:
-        _selectedDay,
-      )
-          .get();
+          .where('dayAr', isEqualTo: _selectedDay);
+      if (widget.teacherMode) {
+        query = query.where('teacherId', isEqualTo: widget.teacherId);
+      }
+      final snapshot = await query.get();
 
       final newDocuments = <
           DocumentSnapshot<
@@ -3380,8 +3393,18 @@ class _ScheduleAdminPageState
           result.start,
           'end':
           result.end,
-          'order':
-          _lectures.length,
+          'order': _lectures.length,
+          if (widget.teacherMode) ...{
+            'teacherId': widget.teacherId,
+            'teacher': widget.teacherName ?? '',
+            'professor': result.professor,
+            'department': widget.department,
+            'stage': widget.stage,
+            'group': result.group,
+            'audienceHalls': result.audienceHalls,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
+          },
         },
       );
 
@@ -3456,8 +3479,17 @@ class _ScheduleAdminPageState
           result.end,
           'start':
           result.start,
-          'end':
-          result.end,
+          'end': result.end,
+          if (widget.teacherMode) ...{
+            'teacherId': widget.teacherId,
+            'teacher': widget.teacherName ?? '',
+            'professor': result.professor,
+            'department': widget.department,
+            'stage': widget.stage,
+            'group': result.group,
+            'audienceHalls': result.audienceHalls,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
         },
       );
 
@@ -3937,11 +3969,10 @@ class _ScheduleAdminPageState
         foregroundColor:
         _textDark,
         elevation: 0,
-        title: const Text(
-          'إدارة الجدول الدراسي',
-          style: TextStyle(
-            fontWeight:
-            FontWeight.w800,
+        title: Text(
+          widget.teacherMode ? 'إدارة محاضراتي' : 'إدارة الجدول الدراسي',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
           ),
         ),
       ),
@@ -4359,6 +4390,8 @@ class _AdminLecture {
   String start;
   String end;
   int order;
+  String group;
+  List<String> audienceHalls;
 
   _AdminLecture({
     required this.documentId,
@@ -4367,6 +4400,8 @@ class _AdminLecture {
     required this.start,
     required this.end,
     required this.order,
+    this.group = 'A',
+    this.audienceHalls = const ['A'],
   });
 
   factory _AdminLecture.fromDocument(
@@ -4402,10 +4437,11 @@ class _AdminLecture {
           data['end']
               ?.toString() ??
           '',
-      order:
-      _readOrder(
-        data['order'],
-      ),
+      order: _readOrder(data['order']),
+      group: data['group']?.toString() ?? 'A',
+      audienceHalls: (data['audienceHalls'] is List)
+          ? (data['audienceHalls'] as List).map((value) => value.toString()).toList()
+          : [data['group']?.toString() ?? 'A'],
     );
   }
 
@@ -4429,12 +4465,16 @@ class _LectureFormResult {
   final String professor;
   final String start;
   final String end;
+  final String group;
+  final List<String> audienceHalls;
 
   const _LectureFormResult({
     required this.subject,
     required this.professor,
     required this.start,
     required this.end,
+    this.group = 'A',
+    this.audienceHalls = const ['A'],
   });
 }
 
