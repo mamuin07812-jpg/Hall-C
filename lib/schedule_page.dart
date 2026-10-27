@@ -22,11 +22,14 @@ class SchedulePage extends StatelessWidget {
 
   String _normalizeDepartment(String value) {
     final v = value.trim();
+    final lower = v.toLowerCase();
 
-    if (v == 'قسم اللغة الانكليزية' ||
-        v == 'قسم اللغة الإنجليزية' ||
-        v == 'اللغة الانكليزية' ||
-        v == 'اللغة الإنجليزية') {
+    if (lower.contains('english') ||
+        v.contains('اللغة الانكليزية') ||
+        v.contains('اللغة الإنكليزية') ||
+        v.contains('اللغة الإنجليزية') ||
+        v.contains('لغة انجليزية') ||
+        v.contains('لغة إنكليزية')) {
       return 'English Language Department';
     }
 
@@ -35,35 +38,25 @@ class SchedulePage extends StatelessWidget {
 
   String _normalizeStage(String value) {
     final v = value.trim();
+    final lower = v.toLowerCase();
 
-    switch (v) {
-      case 'المرحلة الأولى':
-      case 'المرحلة الاولى':
-      case 'First':
-      case '1':
-        return 'First Stage';
-
-      case 'المرحلة الثانية':
-      case 'المرحلة الثانيه':
-      case 'Second':
-      case '2':
-        return 'Second Stage';
-
-      case 'المرحلة الثالثة':
-      case 'المرحلة الثالثه':
-      case 'Third':
-      case '3':
-        return 'Third Stage';
-
-      case 'المرحلة الرابعة':
-      case 'المرحلة الرابعه':
-      case 'Fourth':
-      case '4':
-        return 'Fourth Stage';
-
-      default:
-        return v;
+    if (lower.contains('first') || v == '1' ||
+        v.contains('المرحلة الأولى') || v.contains('المرحلة الاولى')) {
+      return 'First Stage';
     }
+    if (lower.contains('second') || v == '2' ||
+        v.contains('المرحلة الثانية') || v.contains('المرحلة الثانيه')) {
+      return 'Second Stage';
+    }
+    if (lower.contains('third') || v == '3' ||
+        v.contains('المرحلة الثالثة') || v.contains('المرحلة الثالثه')) {
+      return 'Third Stage';
+    }
+    if (lower.contains('fourth') || v == '4' ||
+        v.contains('المرحلة الرابعة') || v.contains('المرحلة الرابعه')) {
+      return 'Fourth Stage';
+    }
+    return v;
   }
 
   String _normalizeGroup(String value) {
@@ -189,7 +182,12 @@ class SchedulePage extends StatelessWidget {
             );
             debugPrint('========================================');
 
-            return parsed;
+            return await _mergeTargetedLectures(
+              parsed,
+              department: department,
+              stage: stage,
+              group: group,
+            );
           }
         }
       }
@@ -214,7 +212,12 @@ class SchedulePage extends StatelessWidget {
           );
           debugPrint('========================================');
 
-          return parsed;
+          return await _mergeTargetedLectures(
+            parsed,
+            department: department,
+            stage: stage,
+            group: group,
+          );
         }
       }
 
@@ -228,6 +231,12 @@ class SchedulePage extends StatelessWidget {
 
       debugPrint('========================================');
 
+      final targeted = await _loadTargetedLectures(
+        department: department,
+        stage: stage,
+        group: group,
+      );
+      if (targeted.isNotEmpty) return targeted;
       return _fallbackForGroup(group);
     } catch (e) {
       debugPrint('Schedule loading error: $e');
@@ -258,6 +267,117 @@ class SchedulePage extends StatelessWidget {
         return _fallbackForGroup('C');
       }
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _mergeTargetedLectures(
+    List<Map<String, dynamic>> base, {
+    required String department,
+    required String stage,
+    required String group,
+  }) async {
+    final targeted = await _loadTargetedLectures(
+      department: department,
+      stage: stage,
+      group: group,
+    );
+    if (targeted.isEmpty) return base;
+
+    final merged = <String, Map<String, dynamic>>{};
+    for (final day in base) {
+      final name = day['dayAr']?.toString() ?? '';
+      merged[name] = {
+        'dayAr': name,
+        'lectures': List<Map<String, dynamic>>.from(
+          (day['lectures'] as List? ?? const []).map(
+            (lecture) => Map<String, dynamic>.from(lecture as Map),
+          ),
+        ),
+      };
+    }
+    for (final day in targeted) {
+      final name = day['dayAr']?.toString() ?? '';
+      final existing = merged.putIfAbsent(
+        name,
+        () => {'dayAr': name, 'lectures': <Map<String, dynamic>>[]},
+      );
+      (existing['lectures'] as List).addAll(
+        (day['lectures'] as List).map(
+          (lecture) => Map<String, dynamic>.from(lecture as Map),
+        ),
+      );
+    }
+    return allowedDays
+        .where((day) => merged.containsKey(day))
+        .map((day) => merged[day]!)
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTargetedLectures({
+    required String department,
+    required String stage,
+    required String group,
+  }) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('schedules')
+        .get();
+    final byDay = <String, List<Map<String, String>>>{};
+
+    String canonicalDay(Map<String, dynamic> data) {
+      final value = (data['dayAr'] ?? data['day'] ?? '').toString().trim();
+      const days = <String, String>{
+        'Sunday': 'الأحد', 'Monday': 'الاثنين',
+        'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء',
+        'الأحد': 'الأحد', 'الاحد': 'الأحد',
+        'الاثنين': 'الاثنين', 'الإثنين': 'الاثنين',
+        'الثلاثاء': 'الثلاثاء', 'الأربعاء': 'الأربعاء',
+        'الاربعاء': 'الأربعاء',
+      };
+      return days[value] ?? '';
+    }
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      if (data['days'] is List || data['lectures'] is List) continue;
+      if (data['teacherId'] == null || data['department'] == null ||
+          data['stage'] == null || data['group'] == null) continue;
+      if (_normalizeDepartment(data['department'].toString()) != department ||
+          _normalizeStage(data['stage'].toString()) != stage) continue;
+
+      final rawHalls = data['audienceHalls'];
+      final halls = rawHalls is List
+          ? rawHalls.map((value) => _normalizeGroup(value.toString())).toSet()
+          : <String>{};
+      final targetGroup = _normalizeGroup(data['group'].toString());
+      final matches = halls.isNotEmpty
+          ? halls.contains(group)
+          : (targetGroup == 'ALL' || targetGroup == group);
+      if (!matches) continue;
+
+      final day = canonicalDay(data);
+      if (!allowedDays.contains(day)) continue;
+      final subject = data['subject']?.toString().trim() ?? '';
+      final professor = data['professor']?.toString().trim() ??
+          data['teacher']?.toString().trim() ?? '';
+      final start = data['startTime']?.toString().trim() ??
+          data['start']?.toString().trim() ?? '';
+      final end = data['endTime']?.toString().trim() ??
+          data['end']?.toString().trim() ?? '';
+      if (subject.isEmpty || start.isEmpty || end.isEmpty) continue;
+      (byDay[day] ??= []).add({
+        'subject': subject,
+        'professor': professor,
+        'start': start,
+        'end': end,
+      });
+    }
+
+    return allowedDays
+        .where(byDay.containsKey)
+        .map((day) => <String, dynamic>{
+          'dayAr': day,
+          'lectures': byDay[day]!,
+        })
+        .toList();
   }
 
   List<Map<String, dynamic>> _parseSchedule(

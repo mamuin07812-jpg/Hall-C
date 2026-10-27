@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'language_controller.dart';
+import 'admin_page.dart';
 
 class PreparationsPage extends StatelessWidget {
   const PreparationsPage({
@@ -143,6 +144,43 @@ class PreparationsPage extends StatelessWidget {
               ),
             ),
             centerTitle: true,
+            actions: isTeacher
+                ? [
+                    IconButton(
+                      tooltip: isArabic ? 'إدارة محاضراتي' : 'Manage my lectures',
+                      icon: const Icon(Icons.edit_calendar_rounded, color: primary),
+                      onPressed: () {
+                        final department = profile['department']?.toString().trim() ?? '';
+                        final stage = profile['stage']?.toString().trim() ?? '';
+                        if (department.isEmpty || stage.isEmpty || teacherId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isArabic
+                                    ? 'بيانات القسم والمرحلة غير مكتملة في حساب التدريسي.'
+                                    : 'Your teacher profile is missing department or stage.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ScheduleAdminPage(
+                              teacherMode: true,
+                              teacherId: teacherId,
+                              teacherName: teacherName,
+                              department: department,
+                              stage: stage,
+                              teacherSubject: teacherSubject,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ]
+                : null,
           ),
 
           floatingActionButton: isTeacher

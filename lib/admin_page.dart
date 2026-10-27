@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -3088,7 +3089,22 @@ class _PreparationsAdminPageState
 // ============================================================
 
 class ScheduleAdminPage extends StatefulWidget {
-  const ScheduleAdminPage({super.key});
+  final bool teacherMode;
+  final String? teacherId;
+  final String? teacherName;
+  final String? department;
+  final String? stage;
+  final String? teacherSubject;
+
+  const ScheduleAdminPage({
+    super.key,
+    this.teacherMode = false,
+    this.teacherId,
+    this.teacherName,
+    this.department,
+    this.stage,
+    this.teacherSubject,
+  });
 
   @override
   State<ScheduleAdminPage> createState() =>
@@ -3133,15 +3149,15 @@ class _ScheduleAdminPageState
     });
 
     try {
-      final snapshot =
-      await _firestore
+      final snapshot = await _firestore
           .collection('schedules')
-          .where(
-        'dayAr',
-        isEqualTo:
-        _selectedDay,
-      )
+          .where('dayAr', isEqualTo: _selectedDay)
           .get();
+      final scheduleDocuments = widget.teacherMode
+          ? snapshot.docs.where(
+              (document) => document.data()['teacherId'] == widget.teacherId,
+            ).toList()
+          : snapshot.docs;
 
       final newDocuments = <
           DocumentSnapshot<
@@ -3152,7 +3168,7 @@ class _ScheduleAdminPageState
               Map<String, dynamic>>>[];
 
       for (final document
-      in snapshot.docs) {
+      in scheduleDocuments) {
         final data =
         document.data();
 
@@ -3166,9 +3182,8 @@ class _ScheduleAdminPageState
         }
       }
 
-      if (newDocuments.isEmpty &&
-          legacyDocuments
-              .isNotEmpty) {
+      if (!widget.teacherMode && newDocuments.isEmpty &&
+          legacyDocuments.isNotEmpty) {
         await _migrateLegacyDay(
           legacyDocuments.first,
         );
@@ -3354,51 +3369,53 @@ class _ScheduleAdminPageState
     if (result == null) return;
 
     try {
-      final reference =
-      await _firestore
-          .collection(
-        'schedules',
-      )
-          .add(
-        {
-          'dayAr':
-          _selectedDay,
-          'day':
-          _dayEnglish[
-          _selectedDay],
-          'subject':
-          result.subject,
-          'teacher':
-          result.professor,
-          'professor':
-          result.professor,
-          'startTime':
-          result.start,
-          'endTime':
-          result.end,
-          'start':
-          result.start,
-          'end':
-          result.end,
-          'order':
-          _lectures.length,
-        },
-      );
+      late final String documentId;
+      if (widget.teacherMode) {
+        final callable = FirebaseFunctions.instance.httpsCallable(
+          'saveTeacherScheduleLecture',
+        );
+        final response = await callable.call({
+          'dayAr': _selectedDay,
+          'subject': result.subject,
+          'start': result.start,
+          'end': result.end,
+          'group': result.group,
+          'audienceHalls': result.audienceHalls,
+        });
+        documentId = response.data['documentId']?.toString() ?? '';
+        if (documentId.isEmpty) {
+          throw StateError('The server did not return the saved lecture ID.');
+        }
+      } else {
+        final reference = await _firestore.collection('schedules').add({
+          'dayAr': _selectedDay,
+          'day': _dayEnglish[_selectedDay],
+          'subject': result.subject,
+          'teacher': result.professor,
+          'professor': result.professor,
+          'startTime': result.start,
+          'endTime': result.end,
+          'start': result.start,
+          'end': result.end,
+          'order': _lectures.length,
+        });
+        documentId = reference.id;
+      }
 
       _lectures.add(
         _AdminLecture(
-          documentId:
-          reference.id,
+          documentId: documentId,
           subject:
           result.subject,
-          professor:
-          result.professor,
+          professor: widget.teacherMode
+              ? widget.teacherName ?? result.professor
+              : result.professor,
           start:
           result.start,
-          end:
-          result.end,
-          order:
-          _lectures.length,
+          end: result.end,
+          order: _lectures.length,
+          group: result.group,
+          audienceHalls: List<String>.from(result.audienceHalls),
         ),
       );
 
@@ -3434,41 +3451,43 @@ class _ScheduleAdminPageState
     if (result == null) return;
 
     try {
-      await _firestore
-          .collection('schedules')
-          .doc(lecture.documentId)
-          .update(
-        {
-          'dayAr':
-          _selectedDay,
-          'day':
-          _dayEnglish[
-          _selectedDay],
-          'subject':
-          result.subject,
-          'teacher':
-          result.professor,
-          'professor':
-          result.professor,
-          'startTime':
-          result.start,
-          'endTime':
-          result.end,
-          'start':
-          result.start,
-          'end':
-          result.end,
-        },
-      );
+      if (widget.teacherMode) {
+        final callable = FirebaseFunctions.instance.httpsCallable(
+          'saveTeacherScheduleLecture',
+        );
+        await callable.call({
+          'documentId': lecture.documentId,
+          'dayAr': _selectedDay,
+          'subject': result.subject,
+          'start': result.start,
+          'end': result.end,
+          'group': result.group,
+          'audienceHalls': result.audienceHalls,
+        });
+      } else {
+        await _firestore.collection('schedules').doc(lecture.documentId).update({
+          'dayAr': _selectedDay,
+          'day': _dayEnglish[_selectedDay],
+          'subject': result.subject,
+          'teacher': result.professor,
+          'professor': result.professor,
+          'startTime': result.start,
+          'endTime': result.end,
+          'start': result.start,
+          'end': result.end,
+        });
+      }
 
       lecture.subject =
           result.subject;
-      lecture.professor =
-          result.professor;
+      lecture.professor = widget.teacherMode
+          ? widget.teacherName ?? result.professor
+          : result.professor;
       lecture.start =
           result.start;
-      lecture.end =
-          result.end;
+      lecture.end = result.end;
+      lecture.group = result.group;
+      lecture.audienceHalls = List<String>.from(result.audienceHalls);
 
       _sortLectures();
 
@@ -3585,7 +3604,9 @@ class _ScheduleAdminPageState
   }
 
   Future<void> _updateOrders() async {
-    if (_lectures.isEmpty) return;
+    // Teacher writes are committed by the authenticated callable; avoid
+    // follow-up client writes that would require broader Firestore rules.
+    if (widget.teacherMode || _lectures.isEmpty) return;
 
     final batch =
     _firestore.batch();
@@ -3640,12 +3661,12 @@ class _ScheduleAdminPageState
   }) async {
     final subjectController =
     TextEditingController(
-      text: lecture?.subject ?? '',
+      text: lecture?.subject ?? (widget.teacherMode ? widget.teacherSubject ?? '' : ''),
     );
 
     final professorController =
     TextEditingController(
-      text: lecture?.professor ?? '',
+      text: lecture?.professor ?? (widget.teacherMode ? widget.teacherName ?? '' : ''),
     );
 
     final startController =
@@ -3658,8 +3679,12 @@ class _ScheduleAdminPageState
       text: lecture?.end ?? '',
     );
 
-    final formKey =
-    GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
+    String selectedGroup = lecture?.group ?? 'A';
+    List<String> selectedHalls = List<String>.from(
+      lecture?.audienceHalls ?? const ['A'],
+    );
+    if (selectedGroup == 'ALL') selectedHalls = ['A', 'B', 'C', 'D'];
 
     return showDialog<
         _LectureFormResult>(
@@ -3737,8 +3762,52 @@ class _ScheduleAdminPageState
                           Icons.person_rounded,
                         ),
                       ),
-                      const SizedBox(
-                          height: 12),
+                      if (widget.teacherMode) ...[
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'استهداف الإشعار',
+                            style: const TextStyle(
+                              color: _textDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: selectedGroup,
+                          decoration: _inputDecoration(
+                            'القاعة المستهدفة',
+                            Icons.groups_rounded,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'A', child: Text('قاعة A')),
+                            DropdownMenuItem(value: 'B', child: Text('قاعة B')),
+                            DropdownMenuItem(value: 'C', child: Text('قاعة C')),
+                            DropdownMenuItem(value: 'D', child: Text('قاعة D')),
+                            DropdownMenuItem(value: 'ALL', child: Text('جميع القاعات A / B / C / D')),
+                          ],
+                          onChanged: saving ? null : (value) {
+                            if (value == null) return;
+                            setDialogState(() {
+                              selectedGroup = value;
+                              selectedHalls = value == 'ALL' ? ['A', 'B', 'C', 'D'] : [value];
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          selectedGroup == 'ALL'
+                              ? 'سيصل الإشعار إلى القاعات الأربع في قسمك ومرحلتك.'
+                              : 'سيصل الإشعار إلى القاعة $selectedGroup فقط ضمن قسمك ومرحلتك.',
+                          style: const TextStyle(
+                            color: _textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller:
                         startController,
@@ -3884,18 +3953,14 @@ class _ScheduleAdminPageState
                     Navigator.pop(
                       dialogContext,
                       _LectureFormResult(
-                        subject:
-                        subjectController
-                            .text
-                            .trim(),
-                        professor:
-                        professorController
-                            .text
-                            .trim(),
-                        start:
-                        start,
-                        end:
-                        end,
+                        subject: subjectController.text.trim(),
+                        professor: professorController.text.trim(),
+                        start: start,
+                        end: end,
+                        group: widget.teacherMode ? selectedGroup : (lecture?.group ?? 'A'),
+                        audienceHalls: widget.teacherMode
+                            ? List<String>.from(selectedHalls)
+                            : List<String>.from(lecture?.audienceHalls ?? const ['A']),
                       ),
                     );
                   },
@@ -3937,11 +4002,10 @@ class _ScheduleAdminPageState
         foregroundColor:
         _textDark,
         elevation: 0,
-        title: const Text(
-          'إدارة الجدول الدراسي',
-          style: TextStyle(
-            fontWeight:
-            FontWeight.w800,
+        title: Text(
+          widget.teacherMode ? 'إدارة محاضراتي' : 'إدارة الجدول الدراسي',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
           ),
         ),
       ),
@@ -4231,12 +4295,9 @@ class _ScheduleAdminPageState
                     lecture);
               }
             },
-            itemBuilder:
-                (_) =>
-            const [
-              PopupMenuItem(
-                value:
-                'edit',
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'edit',
                 child: Row(
                   children: [
                     Icon(
@@ -4251,25 +4312,21 @@ class _ScheduleAdminPageState
                   ],
                 ),
               ),
-              PopupMenuItem(
-                value:
-                'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons
-                          .delete_outline_rounded,
-                      color:
-                      _danger,
-                      size: 20,
-                    ),
-                    SizedBox(
-                        width: 8),
-                    Text(
-                        'حذف'),
-                  ],
+              if (!widget.teacherMode)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        color: _danger,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text('حذف'),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -4359,6 +4416,8 @@ class _AdminLecture {
   String start;
   String end;
   int order;
+  String group;
+  List<String> audienceHalls;
 
   _AdminLecture({
     required this.documentId,
@@ -4367,6 +4426,8 @@ class _AdminLecture {
     required this.start,
     required this.end,
     required this.order,
+    this.group = 'A',
+    this.audienceHalls = const ['A'],
   });
 
   factory _AdminLecture.fromDocument(
@@ -4402,10 +4463,11 @@ class _AdminLecture {
           data['end']
               ?.toString() ??
           '',
-      order:
-      _readOrder(
-        data['order'],
-      ),
+      order: _readOrder(data['order']),
+      group: data['group']?.toString() ?? 'A',
+      audienceHalls: (data['audienceHalls'] is List)
+          ? (data['audienceHalls'] as List).map((value) => value.toString()).toList()
+          : [data['group']?.toString() ?? 'A'],
     );
   }
 
@@ -4429,12 +4491,16 @@ class _LectureFormResult {
   final String professor;
   final String start;
   final String end;
+  final String group;
+  final List<String> audienceHalls;
 
   const _LectureFormResult({
     required this.subject,
     required this.professor,
     required this.start,
     required this.end,
+    this.group = 'A',
+    this.audienceHalls = const ['A'],
   });
 }
 

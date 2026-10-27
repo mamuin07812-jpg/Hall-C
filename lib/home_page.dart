@@ -53,8 +53,7 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 900),
     );
 
-    _loadAccountData();
-    _loadHomeSchedule();
+    _initializeHomeData();
 
     _scheduleTimer = Timer.periodic(
       const Duration(seconds: 30),
@@ -67,6 +66,11 @@ class _HomePageState extends State<HomePage>
     _scheduleTimer?.cancel();
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeHomeData() async {
+    await _loadAccountData();
+    await _loadHomeSchedule();
   }
 
   Future<void> _loadAccountData() async {
@@ -305,6 +309,7 @@ class _HomePageState extends State<HomePage>
 
       for (final document in snapshot.docs) {
         final data = document.data();
+        if (!_isScheduleVisibleToAccount(data)) continue;
 
         final nestedLectures = data['lectures'];
 
@@ -348,6 +353,60 @@ class _HomePageState extends State<HomePage>
         _displayedLecture = null;
       });
     }
+  }
+
+  bool _isScheduleVisibleToAccount(Map<String, dynamic> data) {
+    final scoped = data.containsKey('department') ||
+        data.containsKey('stage') ||
+        data.containsKey('group') ||
+        data.containsKey('audienceHalls');
+    if (!scoped) return true;
+    if (_accountRole == 'teacher') {
+      final user = FirebaseAuth.instance.currentUser;
+      return user != null && data['teacherId']?.toString() == user.uid;
+    }
+
+    String departmentKey(String value) {
+      final v = value.trim().toLowerCase();
+      if (v.contains('english') || v.contains('اللغة الانكليزية') ||
+          v.contains('اللغة الإنكليزية') || v.contains('اللغة الإنجليزية') ||
+          v.contains('لغة انجليزية') || v.contains('لغة إنكليزية')) {
+        return 'english language department';
+      }
+      return v;
+    }
+
+    String stageKey(String value) {
+      final v = value.trim().toLowerCase();
+      if (v.contains('third') || v.contains('الثالث') || v == '3') return 'third stage';
+      if (v.contains('first') || v.contains('الأولى') || v.contains('الاولى') || v == '1') return 'first stage';
+      if (v.contains('second') || v.contains('الثانية') || v.contains('الثانيه') || v == '2') return 'second stage';
+      if (v.contains('fourth') || v.contains('الرابعة') || v.contains('الرابعه') || v == '4') return 'fourth stage';
+      return v;
+    }
+
+    String hallKey(String value) {
+      final v = value.trim().toUpperCase();
+      for (final hall in const ['A', 'B', 'C', 'D']) {
+        if (v.endsWith(hall)) return hall;
+      }
+      return v;
+    }
+
+    final targetDepartment = data['department']?.toString() ?? '';
+    final targetStage = data['stage']?.toString() ?? '';
+    if (targetDepartment.isNotEmpty &&
+        departmentKey(targetDepartment) != departmentKey(_department)) return false;
+    if (targetStage.isNotEmpty && stageKey(targetStage) != stageKey(_stage)) return false;
+
+    final rawHalls = data['audienceHalls'];
+    final halls = rawHalls is List
+        ? rawHalls.map((value) => hallKey(value.toString())).toSet()
+        : <String>{};
+    final targetGroup = hallKey(data['group']?.toString() ?? '');
+    if (halls.isNotEmpty) return halls.contains(hallKey(_group));
+    if (targetGroup == 'ALL' || targetGroup.isEmpty) return true;
+    return targetGroup == hallKey(_group);
   }
 
   _HomeLecture? _lectureFromMap(
