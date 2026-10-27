@@ -24,6 +24,30 @@ function scheduleHall(value) {
   return ["A", "B", "C", "D"].includes(hall) ? hall : "";
 }
 
+/**
+ * Convert a 12-hour or 24-hour clock value to minutes after midnight.
+ * @param {string} value Time value.
+ * @return {?number} Minutes after midnight, or null for invalid input.
+ */
+function timeToMinutes(value) {
+  const text = String(value || "").trim().toUpperCase();
+  const match12 = /^(\\d{1,2}):(\\d{2})\\s*(AM|PM)$/.exec(text);
+  if (match12) {
+    let hour = Number(match12[1]);
+    const minute = Number(match12[2]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    if (hour === 12) hour = 0;
+    if (match12[3] === "PM") hour += 12;
+    return hour * 60 + minute;
+  }
+  const match24 = /^(\\d{1,2}):(\\d{2})$/.exec(text);
+  if (!match24) return null;
+  const hour = Number(match24[1]);
+  const minute = Number(match24[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
 exports.saveTeacherScheduleLecture = onCall(async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) {
@@ -57,10 +81,14 @@ exports.saveTeacherScheduleLecture = onCall(async (request) => {
     input.audienceHalls : [];
   const audienceHalls = [...new Set(rawHalls.map(scheduleHall))];
 
-  if (!SCHEDULE_DAYS.has(dayAr) || !subject || !start || !end) {
+  const startMinutes = timeToMinutes(start);
+  const endMinutes = timeToMinutes(end);
+  if (!SCHEDULE_DAYS.has(dayAr) || !subject ||
+      startMinutes === null || endMinutes === null ||
+      startMinutes >= endMinutes) {
     throw new HttpsError(
         "invalid-argument",
-        "Day, subject, start time and end time are required.");
+        "Provide a valid day, subject and time range.");
   }
 
   if (group === "ALL") {
