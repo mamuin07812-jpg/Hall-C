@@ -384,7 +384,7 @@ class PreparationsPage extends StatelessWidget {
     TextEditingController(text: teacherSubject);
 
     final contentController = TextEditingController();
-    String selectedGroup = 'B';
+    String? selectedGroup;
 
     await showModalBottomSheet(
       context: context,
@@ -523,6 +523,7 @@ class PreparationsPage extends StatelessWidget {
 
                           if (subject.isEmpty ||
                               content.isEmpty ||
+                              selectedGroup == null ||
                               department.isEmpty ||
                               stage.isEmpty) {
                             ScaffoldMessenger.of(
@@ -557,10 +558,10 @@ class PreparationsPage extends StatelessWidget {
                               teacherId,
                               'department': department,
                               'stage': stage,
-                              'group': selectedGroup,
+                              'group': selectedGroup!,
                               'audienceHalls': selectedGroup == 'ALL'
                                   ? ['A', 'B', 'C', 'D']
-                                  : [selectedGroup],
+                                  : [selectedGroup!],
                               'visibleToHalls': selectedGroup == 'ALL'
                                   ? ['A', 'B', 'C', 'D']
                                   : [selectedGroup],
