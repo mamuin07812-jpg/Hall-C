@@ -195,6 +195,8 @@ class PreparationsPage extends StatelessWidget {
                   teacherId: teacherId!,
                   teacherName: teacherName,
                   teacherSubject: teacherSubject,
+                  department: profile['department']?.toString().trim() ?? '',
+                  stage: profile['stage']?.toString().trim() ?? '',
                 );
               },
               icon: const Icon(
@@ -372,6 +374,8 @@ class PreparationsPage extends StatelessWidget {
         required String teacherId,
         required String teacherName,
         required String teacherSubject,
+        required String department,
+        required String stage,
       }) async {
     final language = LanguageScope.of(context);
     final isArabic = language.isArabic;
@@ -380,6 +384,7 @@ class PreparationsPage extends StatelessWidget {
     TextEditingController(text: teacherSubject);
 
     final contentController = TextEditingController();
+    String? selectedGroup;
 
     await showModalBottomSheet(
       context: context,
@@ -467,6 +472,31 @@ class PreparationsPage extends StatelessWidget {
                       maxLines: 8,
                     ),
 
+                    const SizedBox(height: 14),
+
+                    DropdownButtonFormField<String>(
+                      value: selectedGroup,
+                      decoration: InputDecoration(
+                        labelText: isArabic ? 'القاعة المستهدفة' : 'Target hall',
+                        prefixIcon: const Icon(Icons.groups_rounded),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      items: [
+                        DropdownMenuItem(value: 'A', child: Text(isArabic ? 'المجموعة A' : 'Group A')),
+                        DropdownMenuItem(value: 'B', child: Text(isArabic ? 'المجموعة B' : 'Group B')),
+                        DropdownMenuItem(value: 'C', child: Text(isArabic ? 'المجموعة C' : 'Group C')),
+                        DropdownMenuItem(value: 'D', child: Text(isArabic ? 'المجموعة D' : 'Group D')),
+                        DropdownMenuItem(value: 'ALL', child: Text(isArabic ? 'جميع المجموعات' : 'All groups')),
+                      ],
+                      onChanged: saving ? null : (value) {
+                        if (value != null) setState(() => selectedGroup = value);
+                      },
+                    ),
+
                     const SizedBox(height: 20),
 
                     SizedBox(
@@ -492,15 +522,18 @@ class PreparationsPage extends StatelessWidget {
                               .trim();
 
                           if (subject.isEmpty ||
-                              content.isEmpty) {
+                              content.isEmpty ||
+                              selectedGroup == null ||
+                              department.isEmpty ||
+                              stage.isEmpty) {
                             ScaffoldMessenger.of(
                                 context)
                                 .showSnackBar(
                               SnackBar(
                                 content: Text(
                                   isArabic
-                                      ? 'يرجى إكمال جميع الحقول.'
-                                      : 'Please complete all fields.',
+                                      ? 'يرجى إكمال جميع الحقول وبيانات القسم والمرحلة.'
+                                      : 'Complete all fields and your teacher profile scope.',
                                 ),
                               ),
                             );
@@ -523,6 +556,15 @@ class PreparationsPage extends StatelessWidget {
                               'content': content,
                               'teacherId':
                               teacherId,
+                              'department': department,
+                              'stage': stage,
+                              'group': selectedGroup!,
+                              'audienceHalls': selectedGroup == 'ALL'
+                                  ? ['A', 'B', 'C', 'D']
+                                  : [selectedGroup!],
+                              'visibleToHalls': selectedGroup == 'ALL'
+                                  ? ['A', 'B', 'C', 'D']
+                                  : [selectedGroup!],
                               'updatedAt':
                               FieldValue
                                   .serverTimestamp(),
