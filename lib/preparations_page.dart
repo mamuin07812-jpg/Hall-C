@@ -564,7 +564,7 @@ class PreparationsPage extends StatelessWidget {
                                   : [selectedGroup!],
                               'visibleToHalls': selectedGroup == 'ALL'
                                   ? ['A', 'B', 'C', 'D']
-                                  : [selectedGroup],
+                                  : [selectedGroup!],
                               'updatedAt':
                               FieldValue
                                   .serverTimestamp(),
