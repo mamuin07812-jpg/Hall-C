@@ -556,6 +556,12 @@ class PreparationsPage extends StatelessWidget {
                               'content': content,
                               'teacherId':
                               teacherId,
+                              // Keep teacher-created preparation records explicitly separated
+                              // from representative and administrator preparation records.
+                              'creatorUid': teacherId,
+                              'creatorType': 'teacher',
+                              'lastEditorUid': teacherId,
+                              'lastEditorType': 'teacher',
                               'department': department,
                               'stage': stage,
                               'group': selectedGroup!,
