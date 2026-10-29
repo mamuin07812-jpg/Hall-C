@@ -1,0 +1,39 @@
+name: Preparation notification functions check
+
+on:
+  pull_request:
+    paths:
+      - "functions/**"
+      - ".github/workflows/preparation-functions-check.yml"
+  push:
+    branches:
+      - feature/independent-preparation-firestore-triggers
+    paths:
+      - "functions/**"
+      - ".github/workflows/preparation-functions-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+      - name: Lint functions
+        run: npm run lint
+        working-directory: functions
+      - name: Validate JavaScript syntax
+        run: |
+          node --check index.js
+          node --check preparation_notifications.js
+        working-directory: functions
