@@ -1,3 +1,4 @@
+/* eslint max-len: "off", require-jsdoc: "off" */
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {getFirestore, FieldValue, Timestamp} = require("firebase-admin/firestore");
 const {getMessaging} = require("firebase-admin/messaging");
@@ -174,7 +175,7 @@ async function deliverPreparation(event, expectedKind) {
       norm(student.role) === "student" && student.blocked !== true &&
       department(student.department) === audience.department &&
       stage(student.stage) === audience.stage &&
-      audience.halls.includes(hall(student.group))
+      audience.halls.includes(hall(student.group)),
     ).map((student) => clean(student.uid || student.id)).filter(Boolean));
 
     const tokenDocs = await docs("notification_tokens");
@@ -188,9 +189,12 @@ async function deliverPreparation(event, expectedKind) {
     }
     const tokens = [...tokenByValue.keys()];
     if (!tokens.length) {
+      if (recipientUids.size > 0) {
+        throw new Error("No Android tokens found for eligible students.");
+      }
       await claim.ref.set({
-        status: "no_tokens",
-        recipientCount: recipientUids.size,
+        status: "no_recipients",
+        recipientCount: 0,
         updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
       return;
@@ -228,7 +232,7 @@ async function deliverPreparation(event, expectedKind) {
         const retryable = result.responses.some((response) =>
           !response.success && response.error &&
           !String(response.error.code || "").includes("registration-token-not-registered") &&
-          !String(response.error.code || "").includes("invalid-registration-token")
+          !String(response.error.code || "").includes("invalid-registration-token"),
         );
         if (retryable) throw new Error("Transient FCM delivery failure; retry requested.");
       }
