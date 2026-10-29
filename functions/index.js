@@ -151,6 +151,5 @@ exports.saveTeacherScheduleLecture = onCall(async (request) => {
   return {documentId: created.id, operation: "created"};
 });
 
-// Independent Firestore-triggered teacher and representative preparation routes.
-// Existing admin and callable exports above remain unchanged.
+// Independent Firestore preparation routes; existing exports stay unchanged.
 Object.assign(exports, require("./preparation_notifications"));
