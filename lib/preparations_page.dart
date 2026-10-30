@@ -121,8 +121,8 @@ class PreparationsPage extends StatelessWidget {
         isTeacher ? profile['name']?.toString() ?? '' : '';
 
         final teacherSubject = isTeacher
-            ? profile['subject']?.toString() ??
-            profile['specialization']?.toString() ??
+            ? profile['specialization']?.toString() ??
+            profile['subject']?.toString() ??
             ''
             : '';
 
@@ -545,6 +545,81 @@ class PreparationsPage extends StatelessWidget {
                           });
 
                           try {
+                            // Match the exact teacher assignment checked by Firestore Rules.
+                            final teacherProfile = await FirebaseFirestore
+                                .instance
+                                .collection('teachers')
+                                .doc(teacherId)
+                                .get();
+                            final teacherData = teacherProfile.data() ?? {};
+                            final specialization = (teacherData['specialization'] ??
+                                    teacherData['subject'] ??
+                                    '')
+                                .toString()
+                                .trim();
+                            final publisherName =
+                                (teacherData['name'] ?? teacherName).toString().trim();
+                            final profileDepartment =
+                                (teacherData['department'] ?? department).toString().trim();
+
+                            const departmentKeys = <String, String>{
+                              'English Language': 'english-language',
+                              'English Language Department': 'english-language',
+                              'english language': 'english-language',
+                              'english language department': 'english-language',
+                            };
+                            const stageKeys = <String, String>{
+                              'First Stage': '1', 'first stage': '1',
+                              'First': '1', 'first': '1', '1': '1',
+                              'Second Stage': '2', 'second stage': '2',
+                              'Second': '2', 'second': '2', '2': '2',
+                              'Third Stage': '3', 'third stage': '3',
+                              'Third': '3', 'third': '3', '3': '3',
+                              'Fourth Stage': '4', 'fourth stage': '4',
+                              'Fourth': '4', 'fourth': '4', '4': '4',
+                            };
+                            final departmentKey = departmentKeys[profileDepartment];
+                            final stageKey = stageKeys[stage.trim()];
+
+                            if (specialization.isEmpty ||
+                                subject != specialization ||
+                                publisherName.isEmpty ||
+                                departmentKey == null ||
+                                stageKey == null) {
+                              throw StateError(
+                                'Teacher profile is missing a valid specialization, name, department, or stage.',
+                              );
+                            }
+
+                            final assignedSchedules = await FirebaseFirestore
+                                .instance
+                                .collection('schedules')
+                                .where('teacherId', isEqualTo: teacherId)
+                                .get();
+                            final matchingSchedules = assignedSchedules.docs.where((doc) {
+                              final schedule = doc.data();
+                              final scheduleDepartment =
+                                  departmentKeys[schedule['department']?.toString()];
+                              final scheduleStage =
+                                  stageKeys[schedule['stage']?.toString()];
+                              return schedule['teacherId'] == teacherId &&
+                                  schedule['group'] == selectedGroup &&
+                                  scheduleDepartment == departmentKey &&
+                                  scheduleStage == stageKey;
+                            }).toList();
+
+                            if (matchingSchedules.length != 1) {
+                              throw StateError(
+                                matchingSchedules.isEmpty
+                                    ? 'No active schedule assignment was found for this hall.'
+                                    : 'More than one schedule assignment matched this hall.',
+                              );
+                            }
+
+                            final assignmentScheduleIds = <String, String>{
+                              selectedGroup!: matchingSchedules.single.id,
+                            };
+
                             await FirebaseFirestore
                                 .instance
                                 .collection(
@@ -562,7 +637,12 @@ class PreparationsPage extends StatelessWidget {
                               'creatorType': 'teacher',
                               'lastEditorUid': teacherId,
                               'lastEditorType': 'teacher',
-                              'department': department,
+                              'specialization': specialization,
+                              'publisherName': publisherName,
+                              'departmentKey': departmentKey,
+                              'stageKey': stageKey,
+                              'assignmentScheduleIds': assignmentScheduleIds,
+                              'department': profileDepartment,
                               'stage': stage,
                               'group': selectedGroup!,
                               'audienceHalls': selectedGroup == 'ALL'
