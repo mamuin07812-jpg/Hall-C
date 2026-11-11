@@ -1,0 +1,126 @@
+name: Schoolivia native PostgreSQL migrations
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'supabase/firebase_rebuild/00[1-5]_*.sql'
+      - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/native_test_migrations.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/connection_file_guard.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs'
+      - '.github/workflows/schoolivia-native-migrations.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schoolivia-native-migrations-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrations-postgres-17:
+    name: Disposable Supabase PostgreSQL 17 migrations 001–005
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SCHOOLIVIA_TEST_DB: schoolivia_test_${{ github.run_id }}_${{ github.run_attempt }}
+      POSTGRES_PASSWORD: schoolivia-ci-ephemeral-only-not-a-secret
+      POSTGREST_TEST_PASSWORD: ci-authenticator-only
+      PGSERVICEFILE: ${{ runner.temp }}/schoolivia-ci.pg_service.conf
+      SCHOOLIVIA_TEST_POSTGREST_URI_FILE: ${{ runner.temp }}/schoolivia-ci.postgrest-uri
+      SCHOOLIVIA_TEST_PG_SERVICE: schoolivia_ci
+      SCHOOLIVIA_TEST_POSTGREST_PORT: '18433'
+      SCHOOLIVIA_PSQL: psql
+      SCHOOLIVIA_PG_DUMP: pg_dump
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 17 client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor --yes -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-17
+
+      - name: Start isolated Supabase PostgreSQL 17 container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --rm \
+            --name "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --publish 127.0.0.1:18432:18432 \
+            --env POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_DB="$SCHOOLIVIA_TEST_DB" \
+            supabase/postgres:17.6.1.136 \
+            -c port=18432 -c listen_addresses='*'
+          ready=false
+          for attempt in $(seq 1 60); do
+            if pg_isready --host 127.0.0.1 --port 18432 --username postgres --dbname "$SCHOOLIVIA_TEST_DB"; then ready=true; break; fi
+            sleep 2
+          done
+          if [[ "$ready" != true ]]; then
+            docker logs "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" 2>&1 | tail -n 80
+            exit 1
+          fi
+          container_ip=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
+          [[ "$container_ip" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]] || { echo 'Unexpected PostgreSQL container address' >&2; exit 1; }
+          echo "SCHOOLIVIA_EXPECTED_PG_SERVER_ADDRESS=$container_ip" >> "$GITHUB_ENV"
+
+      - name: Provision only synthetic PostgREST roles and connection files
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod 700 "$RUNNER_TEMP"
+          umask 077
+          cat > "$PGSERVICEFILE" <<EOF
+          [schoolivia_ci]
+          host=127.0.0.1
+          port=18432
+          dbname=$SCHOOLIVIA_TEST_DB
+          user=postgres
+          password=$POSTGRES_PASSWORD
+          EOF
+          cat > "$SCHOOLIVIA_TEST_POSTGREST_URI_FILE" <<EOF
+          postgres://authenticator:$POSTGREST_TEST_PASSWORD@127.0.0.1:18432/$SCHOOLIVIA_TEST_DB
+          EOF
+          PGSERVICEFILE="$PGSERVICEFILE" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
+            "create role anon nologin; create role authenticated nologin; create role service_role nologin; create role authenticator login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
+
+      - name: Download pinned PostgREST 14.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/postgrest-v14.18-linux-static-x86-64.tar.xz"
+          curl --fail --silent --show-error --location \
+            https://github.com/PostgREST/postgrest/releases/download/v14.18/postgrest-v14.18-linux-static-x86-64.tar.xz \
+            --output "$archive"
+          mkdir -p "$RUNNER_TEMP/postgrest"
+          tar -xJf "$archive" -C "$RUNNER_TEMP/postgrest" postgrest
+          chmod 700 "$RUNNER_TEMP/postgrest/postgrest"
+          echo "SCHOOLIVIA_POSTGREST=$RUNNER_TEMP/postgrest/postgrest" >> "$GITHUB_ENV"
+
+      - name: Execute native migrations and PostgreSQL/PostgREST checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            supabase/firebase_rebuild/otp_proof_test/connection_file_guard.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/native_test_migrations.test.mjs
+          node supabase/firebase_rebuild/otp_proof_test/native_postgres_test.mjs
+
+      - name: Stop only the disposable PostgreSQL container
+        if: always()
+        shell: bash
+        run: |
+          docker rm --force "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
