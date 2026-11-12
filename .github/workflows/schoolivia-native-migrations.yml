@@ -68,7 +68,7 @@ jobs:
             --publish 127.0.0.1:18432:18432 \
             --env POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
             --env POSTGRES_USER=supabase_admin \
-            --env POSTGRES_DB="$SCHOOLIVIA_TEST_DB" \
+            --env POSTGRES_DB=postgres \
             supabase/postgres:17.6.1.136 \
             -c port=18432 -c listen_addresses='*'
           ready=false
@@ -80,6 +80,9 @@ jobs:
             docker logs "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" 2>&1 | tail -n 80
             exit 1
           fi
+          PGPASSWORD="$POSTGRES_PASSWORD" createdb 
+            --host 127.0.0.1 --port 18432 --username supabase_admin 
+            --maintenance-db postgres --template template0 "$SCHOOLIVIA_TEST_DB"
           container_ip=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
           [[ "$container_ip" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]] || { echo 'Unexpected PostgreSQL container address' >&2; exit 1; }
           echo "SCHOOLIVIA_EXPECTED_PG_SERVER_ADDRESS=$container_ip" >> "$GITHUB_ENV"
