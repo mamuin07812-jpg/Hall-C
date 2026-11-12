@@ -1,6 +1,6 @@
 import { createExchangeWorker, issueOtpTicket } from './otp_proof_exchange_worker_draft.mjs';
 
-const OTP_TTL_SECONDS = 300;
+const OTP_TTL_SECONDS = 600;
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_SECONDS = 60;
 const PURPOSES = new Set(['student.register', 'teacher.register']);
@@ -23,7 +23,9 @@ async function sha256(value) {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 function generateOtp() {
-  return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return String(100_000 + bytes[0] % 900_000);
 }
 async function readBody(request) {
   try { return await request.json(); } catch { return null; }
