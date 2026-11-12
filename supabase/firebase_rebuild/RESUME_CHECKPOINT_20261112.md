@@ -1,5 +1,13 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Registration source located — 2026-11-12 15:17 Iraq time
+
+- Searched prior project terminal captures in the user's Library and found an actual `C:\\ClassroomHub\\lib\\register_page.dart` excerpt. At lines 370–399 it uses four student controllers: `_firstNameController`, `_fatherNameController`, `_grandfatherNameController`, `_greatGrandfatherNameController`; joins them into `name`; and writes the four individual Firestore keys. At lines 498–520 the teacher registration uses one `_nameController` full name.
+- The captured student registration also wrote the fourth field into both `greatGrandfatherName` and `familyName`. The captured `account_gate.dart` profile completion wrote the same `_familyName` value into both keys. This is a legacy duplicate mapping, not proof of a separate family-name input. User confirmed the fourth registration field means great-grandfather's name.
+- GitHub `main` and PR #7 source snapshots still differ (single shared full-name field); the prior local capture is stronger evidence for the app version user described. We did not modify Flutter or Firebase. Compatibility report updated to record the source evidence and legacy duplicate.
+- Candidate SQL mappings remain corrected so `p_great_grandfather_name` writes only `great_grandfather_name`; `family_name` remains separate. Native PostgreSQL CI already passed after this correction.
+
+
 ## Native PostgreSQL CI result — 2026-11-12 15:14 Iraq time
 
 - Run `43215900715` completed successfully against the PR #7 merge commit `6582ce6542a7884d22ff6d3056435d364d180335`.
