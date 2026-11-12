@@ -1,5 +1,14 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Latest continuation update — 2026-11-12 15:11 Iraq time
+
+- User confirmed student registration captures four separate fields: first name, father's name, grandfather's name, and great-grandfather's name. The fourth field is specifically the great-grandfather's name, not family name. Teacher registration remains one full-name field.
+- Corrected candidate registration inserts in migrations 001, 003, 004, and 005: `p_great_grandfather_name` now populates only `profiles.great_grandfather_name`; `profiles.family_name` remains separate and unset by registration.
+- Updated `REGISTRATION_COMPATIBILITY_20261112.md` and the contract test to reflect the confirmed semantics and guard against the previous duplicate mapping.
+- Important source discrepancy remains: the `lib/register_page.dart` file inspected on this PR branch still shows a single shared full-name field for student and teacher, unlike the user's description of the current student form. Do not edit Flutter based on this snapshot; reconcile the correct source/version before integration.
+- These are candidate SQL/test/documentation changes on the existing PR #7 branch only. No migration was applied; no Flutter/Admin/Firebase/Worker/local production-like DB was changed. PR #7 remains open and unmerged. The latest SQL/test changes now require a fresh disposable native PostgreSQL CI run.
+
+
 ## Current verified GitHub state (authoritative)
 
 - Repository: `mamuin07812-jpg/Hall-C`.
