@@ -1,5 +1,14 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## OTP Worker exchange prototype — test-only (2026-11-12)
+
+- Read-only inspection of the deployed `schoolivia-un-otp-worker` source confirmed `/verify-otp` accepts only email/code, consumes the D1 challenge, and returns `{ok:true,verified:true}`. Its router has no registration proof or Firebase-ID-token exchange endpoint. No Worker code, secret, binding, D1 schema/data, or deployment was changed.
+- Added `otp_proof_test/otp_proof_exchange_worker_draft.mjs`, an isolated Cloudflare Worker-compatible prototype: RSA-SHA256 Firebase ID-token verification against JWKS, email/purpose-bound HMAC OTP ticket verification, and short-lived Supabase HS256 JWT issuance with the exact Firebase issuer/audience, authenticated role, Firebase UID, and OTP claims expected by the candidate SQL.
+- The ticket issuer helper is designed to be called only after successful OTP verification. The prototype intentionally has no D1 binding; the database remains the one-time `jti` consumption boundary. It is not wired to the deployed OTP Worker and is not deployed.
+- Added 11 synthetic tests with generated RSA keys and test-only secrets. GitHub Actions run **43220109370** passed **34/34 static + CSV + exchange tests** and **23/23 native PostgreSQL 17/PostgREST 14.18 checks**. The temporary DB was removed. This does not yet validate real Google JWKS connectivity or a real Worker/D1 integration.
+- Next safe implementation step: adapt the proof-ticket issuance into a separate test Worker/D1 fixture and exercise the current OTP flow end-to-end, preserving the legacy response for existing clients. Production changes still require separate explicit authorization.
+
+
 ## Academic completion + roster preflight — CI PASS (2026-11-12)
 
 - Added four native PostgREST checks for `complete_student_registration`: correct gender/stage/hall succeeds; mismatched stage, mismatched hall, and unsupported gender are rejected without marking the profile complete. PostgREST returns HTTP 204 for the successful void RPC.
