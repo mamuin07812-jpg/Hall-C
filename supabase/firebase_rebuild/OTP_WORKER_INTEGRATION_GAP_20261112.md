@@ -50,6 +50,23 @@ A standalone Worker draft now exists at `otp_proof_test/otp_proof_exchange_worke
 
 Synthetic Node tests generate their own RSA key pair, fake JWKS response, and test-only HMAC secrets. They cover valid exchange, wrong email/purpose, expiry, wrong project, forged/unknown Firebase signing keys, malformed requests, missing secrets, and repeated ticket exchange retaining the same `jti`. GitHub Actions run **43220109370** passed **34/34 static + CSV + exchange tests** and **23/23 native PostgreSQL/PostgREST checks**. This is protocol proof only; it does not exercise the deployed Worker or real Google JWKS network.
 
+## D1-backed end-to-end fixture added
+
+The next test layer is now implemented in `otp_proof_test/otp_proof_worker_d1_draft.mjs` and runs under Miniflare's local SQLite-backed D1 runtime:
+
+- Optional `purpose` on `/request-otp`; old requests omit it.
+- The challenge is hashed using the same input pattern as the deployed Worker: normalized email + colon + six-digit code + colon + `OTP_HASH_SECRET`.
+- `/verify-otp` keeps the exact legacy `{ok:true,verified:true}` response when purpose is absent.
+- Registration challenges return a short-lived signed ticket only after an atomic conditional delete confirms that the challenge was consumed once.
+- Student and teacher purposes are allow-listed; invalid attempts, expiry, replay, concurrent requests, and D1 errors fail closed.
+- The D1 test then passes the ticket with a synthetic RSA-signed Firebase ID token through the exchange prototype and verifies the Supabase JWT claims.
+
+GitHub Actions run **43221275400** passed **8/8 Miniflare D1 tests**, **34/34 static/contract/CSV/exchange tests**, and **23/23 native PostgreSQL/PostgREST checks**. This run was before the additive migration-specific regression was added. A follow-up CI run is validating that migration against a legacy challenge table.
+
+A read-only schema-only inspection of the existing *test* D1 database `schoolivia-un-otp-state-test-20261111` showed `otp_challenges` has columns `id,email,code_hash,expires_at,attempts,max_attempts,created_at,last_sent_at` and an email/id index, but no `purpose` column. That database was not modified. Production D1 rows, OTP hashes, and secrets were not queried.
+
+An additive candidate migration `otp_proof_test/otp_challenge_purpose_migration.sql` now adds a nullable constrained `purpose` column, leaving existing rows NULL so old OTP clients retain their response. It is a draft only and has not been applied to any Cloudflare D1 database.
+
 ## Current boundary
 
 - Candidate SQL migrations and CI are test-only and have passed isolated PostgreSQL/PostgREST checks.
