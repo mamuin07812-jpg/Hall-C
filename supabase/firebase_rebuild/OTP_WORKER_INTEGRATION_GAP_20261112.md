@@ -38,6 +38,18 @@ The captured student flow verifies the email OTP before it creates the Firebase 
 
 Before writing a D1 migration, inspect only the table definitions and indexes for the deployed OTP challenge schema. Decide whether to add purpose/ticket state to the existing challenge table or use a separate registration-proof table. Do not query or export challenge rows, OTP hashes, user records, or secret values. Any production D1/Worker modification requires separate explicit authorization.
 
+## Test-only exchange prototype added
+
+A standalone Worker draft now exists at `otp_proof_test/otp_proof_exchange_worker_draft.mjs`. It is not connected to the deployed Worker and is not deployed. It implements:
+
+- RSA-SHA256 Firebase ID-token signature verification against the Google Secure Token JWKS endpoint, plus exact project issuer/audience, UID, email, issued-at, and expiry checks.
+- HMAC-signed short-lived email/purpose OTP tickets (maximum five minutes), designed to be issued only after the existing OTP challenge has been successfully consumed.
+- Exact email binding between Firebase ID token and OTP ticket; allowed registration purposes only.
+- A Supabase-compatible HS256 JWT with Firebase issuer/audience, authenticated role, Firebase UID in `sub`, and the required OTP proof claims. Its lifetime is bounded by both source tokens and five minutes.
+- No service-role claim/key, no client-provided verification boolean, and no D1 or Supabase writes. The SQL registration RPC remains responsible for atomic one-time `jti` consumption.
+
+Synthetic Node tests generate their own RSA key pair, fake JWKS response, and test-only HMAC secrets. They cover valid exchange, wrong email/purpose, expiry, wrong project, forged/unknown Firebase signing keys, malformed requests, missing secrets, and repeated ticket exchange retaining the same `jti`. GitHub Actions run **43220109370** passed **34/34 static + CSV + exchange tests** and **23/23 native PostgreSQL/PostgREST checks**. This is protocol proof only; it does not exercise the deployed Worker or real Google JWKS network.
+
 ## Current boundary
 
 - Candidate SQL migrations and CI are test-only and have passed isolated PostgreSQL/PostgREST checks.
