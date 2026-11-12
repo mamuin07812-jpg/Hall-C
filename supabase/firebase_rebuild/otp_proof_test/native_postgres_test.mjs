@@ -269,6 +269,29 @@ try {
     assert.equal(response.status, 200, await response.text());
     assert.equal(sql("select teacher_status::text from schoolivia.profiles where firebase_uid='native-teacher-uid'"), 'pending');
   });
+  await check('Arabic teacher specialization is normalized to its canonical English value', async () => {
+    const uid = 'native-arabic-teacher';
+    const response = await http('/rpc/register_teacher', {
+      method: 'POST',
+      jwt: token(uid, 'arabic-teacher-native@example.invalid', { purpose: 'teacher.register' }),
+      body: { p_name: 'Synthetic Arabic Teacher', p_employee_id: 'NATIVE-T-AR', p_specialization: 'النحو' },
+    });
+    assert.equal(response.status, 200, await response.text());
+    assert.equal(sql(`select specialization from schoolivia.profiles where firebase_uid='${uid}'`), 'Grammar');
+    assert.equal(sql(`select teacher_status::text from schoolivia.profiles where firebase_uid='${uid}'`), 'pending');
+  });
+  await check('unknown teacher specialization is rejected without consuming OTP proof', async () => {
+    const uid = 'native-unknown-specialization';
+    const jti = 'native-unknown-specialization-jti';
+    const response = await http('/rpc/register_teacher', {
+      method: 'POST',
+      jwt: token(uid, 'unknown-specialization@example.invalid', { purpose: 'teacher.register', jti }),
+      body: { p_name: 'Synthetic Unknown Teacher', p_employee_id: 'NATIVE-T-BAD', p_specialization: 'Unknown Subject' },
+    });
+    assert.ok(response.status >= 400, `unsupported specialization must be rejected; got ${response.status}`);
+    assert.equal(sql(`select count(*) from schoolivia.profiles where firebase_uid='${uid}'`), '0');
+    assert.equal(sql(`select count(*) from schoolivia_internal.otp_proof_uses where jti='${jti}'`), '0');
+  });
   await check('teacher cannot self-approve through the Admin lifecycle RPC', async () => {
     const teacherId = sql("select id::text from schoolivia.profiles where firebase_uid='native-teacher-uid'");
     const response = await http('/rpc/admin_set_teacher_status', { method: 'POST', jwt: teacherJwt, body: { p_teacher: teacherId, p_status: 'approved' } });
