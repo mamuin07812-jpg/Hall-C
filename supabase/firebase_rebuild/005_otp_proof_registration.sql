@@ -43,6 +43,12 @@ begin
   if v_student_id is null or v_email is null or v_email = '' then
     raise exception 'approved student ID and email required';
   end if;
+  if nullif(trim(p_first_name), '') is null
+     or nullif(trim(p_father_name), '') is null
+     or nullif(trim(p_grandfather_name), '') is null
+     or nullif(trim(p_great_grandfather_name), '') is null then
+    raise exception 'all four student name components are required';
+  end if;
 
   select * into v_roster
   from schoolivia.approved_students
