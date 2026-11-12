@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign as rsaSign, webcrypto } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import test, { after, before } from 'node:test';
 import { Miniflare } from 'miniflare';
 import { createExchangeWorker } from './otp_proof_exchange_worker_draft.mjs';
@@ -23,8 +24,7 @@ async function createSchema() {
     attempts INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 5,
     created_at INTEGER NOT NULL,
-    last_sent_at INTEGER NOT NULL,
-    purpose TEXT
+    last_sent_at INTEGER NOT NULL
   )`).run();
   await db.prepare('CREATE INDEX IF NOT EXISTS otp_challenges_email_id_idx ON otp_challenges(email, id DESC)').run();
   await db.prepare(`CREATE TABLE IF NOT EXISTS otp_test_outbox (
@@ -100,10 +100,24 @@ before(async () => {
   await mf.ready;
   db = await mf.getD1Database('DB');
   await createSchema();
+  await db.prepare(
+    'INSERT INTO otp_challenges (email, code_hash, expires_at, attempts, max_attempts, created_at, last_sent_at) VALUES (?, ?, ?, 0, 5, ?, ?)',
+  ).bind('pre-migration@example.invalid', 'legacy-hash-placeholder', 2000000000, 100, 100).run();
+  const migration = await readFile(new URL('./otp_challenge_purpose_migration.sql', import.meta.url), 'utf8');
+  await db.prepare(migration).run();
 });
 
 after(async () => {
   await mf?.dispose();
+});
+
+test('additive D1 migration preserves existing OTP challenges with a NULL purpose', async () => {
+  const columns = await db.prepare('PRAGMA table_info(otp_challenges)').all();
+  assert.ok(columns.results.some(column => column.name === 'purpose'));
+  const legacy = await db.prepare(
+    'SELECT email, purpose FROM otp_challenges WHERE email = ?',
+  ).bind('pre-migration@example.invalid').first();
+  assert.deepEqual(legacy, { email: 'pre-migration@example.invalid', purpose: null });
 });
 
 test('legacy OTP clients retain the exact verified response and cannot obtain a registration ticket', async () => {
