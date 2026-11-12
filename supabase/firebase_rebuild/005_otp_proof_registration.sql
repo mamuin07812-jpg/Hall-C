@@ -183,6 +183,7 @@ declare
   v_jti text := nullif(trim(claims ->> 'otp_jti'), '');
   v_exp bigint;
   v_now bigint := floor(extract(epoch from now()))::bigint;
+  v_specialization text;
   v_id uuid;
 begin
   if v_uid is null or not schoolivia.jwt_context_ok() then
@@ -195,9 +196,39 @@ begin
     raise exception 'profile already exists';
   end if;
   if nullif(trim(p_name), '') is null
-     or nullif(trim(p_employee_id), '') is null
-     or p_specialization not in ('Poetry','Conversation','Guidance','Theology','Teaching Methods','Drama','Linguistics','Grammar','Academic Writing','Novel') then
+     or nullif(trim(p_employee_id), '') is null then
     raise exception 'invalid teacher registration';
+  end if;
+
+  -- The existing app accepts free text and is localized. Normalize only
+  -- the established English/Arabic subject vocabulary; reject unknown input.
+  v_specialization := case lower(trim(p_specialization))
+    when 'poetry' then 'Poetry'
+    when 'الشعر' then 'Poetry'
+    when 'conversation' then 'Conversation'
+    when 'المحادثة' then 'Conversation'
+    when 'guidance' then 'Guidance'
+    when 'الإرشاد' then 'Guidance'
+    when 'الارشاد' then 'Guidance'
+    when 'theology' then 'Theology'
+    when 'العقائد' then 'Theology'
+    when 'عقائد' then 'Theology'
+    when 'teaching methods' then 'Teaching Methods'
+    when 'طرائق التدريس' then 'Teaching Methods'
+    when 'drama' then 'Drama'
+    when 'المسرحية' then 'Drama'
+    when 'linguistics' then 'Linguistics'
+    when 'علم اللغة' then 'Linguistics'
+    when 'grammar' then 'Grammar'
+    when 'النحو' then 'Grammar'
+    when 'academic writing' then 'Academic Writing'
+    when 'الكتابة الأكاديمية' then 'Academic Writing'
+    when 'novel' then 'Novel'
+    when 'الرواية' then 'Novel'
+    else null
+  end;
+  if v_specialization is null then
+    raise exception 'unsupported teacher specialization';
   end if;
   if claims ->> 'otp_verified' is distinct from 'true'
      or lower(trim(claims ->> 'otp_email')) is distinct from v_email
@@ -225,7 +256,7 @@ begin
     department, email_verified, email_verified_at, teacher_status
   ) values (
     v_uid, 'teacher', trim(p_name), v_email, trim(p_employee_id),
-    p_specialization, 'English Language', true, now(), 'pending'
+    v_specialization, 'English Language', true, now(), 'pending'
   ) returning id into v_id;
   return v_id;
 exception
