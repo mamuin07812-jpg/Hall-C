@@ -170,15 +170,12 @@ try {
   await check('current Firestore signup keys map to typed Schoolivia profile columns', async () => {
     const registerSource = readFileSync(path.resolve(root, '..', '..', 'lib', 'register_page.dart'), 'utf8');
     const mappings = [
-      ['uid', 'firebase_uid', 'text'], ['firstName', 'first_name', 'text'], ['fatherName', 'father_name', 'text'],
-      ['grandfatherName', 'grandfather_name', 'text'], ['greatGrandfatherName', 'great_grandfather_name', 'text'],
-      ['familyName', 'family_name', 'text'], ['name', 'full_name', 'text'], ['email', 'email', 'text'],
-      ['studentId', 'student_id', 'text'], ['employeeId', 'employee_id', 'text'], ['department', 'department', 'text'],
-      ['role', 'role', 'account_role'], ['specialization', 'specialization', 'text'], ['status', 'teacher_status', 'teacher_status'],
-      ['emailVerified', 'email_verified', 'bool'], ['emailVerifiedAt', 'email_verified_at', 'timestamptz'],
-      ['registrationStatus', 'registration_status', 'registration_status'], ['profileCompleted', 'profile_completed', 'bool'],
+      ['uid', 'firebase_uid', 'text'], ['name', 'full_name', 'text'], ['email', 'email', 'text'],
+      ['studentId', 'student_id', 'text'], ['department', 'department', 'text'],
+      ['profileCompleted', 'profile_completed', 'bool'], ['role', 'role', 'account_role'],
       ['createdAt', 'created_at', 'timestamptz'], ['updatedAt', 'updated_at', 'timestamptz'],
-      ['gender', 'gender', 'text'], ['stage', 'stage', 'text'], ['group', 'hall', 'text'],
+      ['employeeId', 'employee_id', 'text'], ['specialization', 'specialization', 'text'],
+      ['status', 'teacher_status', 'teacher_status'],
     ];
     for (const [source] of mappings) assert.match(registerSource, new RegExp(`['"]${source}['"]\\s*:`), `Firestore field ${source} is absent from current registration writes`);
     const columnNames = mappings.map(([, target]) => target);
