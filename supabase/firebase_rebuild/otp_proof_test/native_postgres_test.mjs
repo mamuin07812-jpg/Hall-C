@@ -212,7 +212,7 @@ try {
       method: 'POST', jwt: studentJwt,
       body: { p_gender: 'Female', p_stage: 'First Stage', p_hall: 'A' },
     });
-    assert.equal(response.status, 200, await response.text());
+    assert.equal(response.status, 204, 'void PostgREST RPC should return HTTP 204');
     assert.equal(sql("select gender || '|' || stage || '|' || hall || '|' || profile_completed::text from schoolivia.profiles where firebase_uid='native-student-uid'"), 'Female|First Stage|A|true');
   });
   await check('student academic completion rejects a stage that differs from the approved roster', async () => {
