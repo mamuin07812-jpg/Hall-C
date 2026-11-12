@@ -93,7 +93,7 @@ before(async () => {
   mf = new Miniflare({
     scriptPath: workerPath,
     modules: true,
-    compatibilityDate: '2026-11-12',
+    compatibilityDate: '2026-08-06', // latest compatibility date supported by pinned Miniflare workerd
     d1Databases: { DB: 'schoolivia-otp-proof-d1-test' },
     bindings: {
       TEST_MODE: 'true',
@@ -133,6 +133,7 @@ test('legacy OTP clients retain the exact verified response and cannot obtain a 
   const email = 'legacy@example.invalid';
   const requested = await requestOtp(email);
   assert.equal(requested.status, 200);
+  assert.equal((await requested.json()).expiresIn, 600);
   const verified = await verifyOtp(email, await capturedCode(email));
   assert.equal(verified.status, 200);
   assert.deepEqual(await verified.json(), { ok: true, verified: true });
