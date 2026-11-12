@@ -5,7 +5,6 @@ const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_SECONDS = 60;
 const PURPOSES = new Set(['student.register', 'teacher.register']);
 const encoder = new TextEncoder();
-const exchangeWorker = createExchangeWorker();
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -151,7 +150,17 @@ export default {
     }
     if (url.pathname === '/request-otp') return requestOtp(request, env);
     if (url.pathname === '/verify-otp') return verifyOtp(request, env);
-    if (url.pathname === '/exchange') return exchangeWorker.fetch(request, env);
+    if (url.pathname === '/exchange') {
+      const exchangeWorker = createExchangeWorker({
+        fetchImpl: async (target, init) => {
+          if (env.TEST_MODE === 'true' && env.TEST_JWKS_JSON) {
+            return new Response(env.TEST_JWKS_JSON, { status: 200, headers: { 'content-type': 'application/json' } });
+          }
+          return fetch(target, init);
+        },
+      });
+      return exchangeWorker.fetch(request, env);
+    }
     return json({ ok: false, error: 'Not found' }, 404);
   },
 };
