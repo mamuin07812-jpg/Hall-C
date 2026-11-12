@@ -1,5 +1,15 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## D1-backed OTP + ES256 exchange integration — CI PASS (2026-11-12)
+
+- The D1 challenge table schema was inspected read-only in the existing test database only. It lacks a `purpose` column. Added an additive draft migration that adds nullable, constrained `purpose`; pre-existing challenges remain NULL and retain the legacy response. No Cloudflare D1 migration was applied remotely.
+- Added Miniflare D1 Worker fixture. Existing production OTP semantics preserved in the fixture: 600-second challenge expiry, 60-second resend cooldown, six-digit code generation, five attempts, and existing SHA-256 input format. Legacy callers without purpose still receive exactly `{ok:true,verified:true}`; student/teacher registration callers receive a signed 180-second ticket only after atomic challenge consumption.
+- The test now runs the Worker `/request-otp`, `/verify-otp`, and `/exchange` routes inside Miniflare. It proves the D1 OTP → signed purpose/email ticket → synthetic Firebase RSA ID-token verification → Supabase JWT path. Exchange supports ES256 private JWK + kid or HS256 secret, and the test verifies ES256 signature against its matching public JWK. Deployment must use the algorithm/key matching the actual Supabase/PostgREST JWT configuration.
+- Pinned Miniflare **4.20260730.0** under a temporary CI-only prefix and Node.js 22; no dependency was added to the app. The temporary dependency symlink was removed after tests.
+- GitHub Actions run **43222845177**, commit `50bd0ab1b3ec74ecf798c5ee42c27223d603a627`: **9/9 D1 tests**, **35/35 static/contract/CSV/crypto tests**, **23/23 native PostgreSQL 17 + PostgREST 14.18 checks**. Pre-migration disposable PostgreSQL backup SHA-256: `b21d339a304d38d6233d6086e7d66d4ffde6a5c6503d7ee69e5590291e23ff23`. Disposable DB/container were removed.
+- No production Worker/D1, production Firebase, production Supabase, local Supabase, Flutter, or Admin runtime was modified. PR #7 remains open/unmerged.
+
+
 ## OTP Worker exchange prototype — test-only (2026-11-12)
 
 - Read-only inspection of the deployed `schoolivia-un-otp-worker` source confirmed `/verify-otp` accepts only email/code, consumes the D1 challenge, and returns `{ok:true,verified:true}`. Its router has no registration proof or Firebase-ID-token exchange endpoint. No Worker code, secret, binding, D1 schema/data, or deployment was changed.
