@@ -142,11 +142,16 @@ jobs:
           chmod 700 "$RUNNER_TEMP/postgrest/postgrest"
           echo "SCHOOLIVIA_POSTGREST=$RUNNER_TEMP/postgrest/postgrest" >> "$GITHUB_ENV"
 
-      - name: Install isolated Miniflare D1 test runtime
+      - name: Set up Node.js 22 for the isolated Worker test runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Miniflare D1 test runtime
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --package-lock=false miniflare@3
+          npm install --no-save --package-lock=false miniflare@4.20260730.0
 
       - name: Execute D1-backed OTP proof integration tests
         shell: bash
