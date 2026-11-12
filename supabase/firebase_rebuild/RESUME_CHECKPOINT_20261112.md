@@ -1,28 +1,38 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
-## Confirmed repository state
+## Current verified GitHub state (authoritative)
 
-- Current branch: `fix/preparation-hall-targeting-review`, tracking `origin/fix/preparation-hall-targeting-review`.
-- Latest commit: `e9e9a67` (`Include migration inputs for native PostgreSQL CI`), preceded by `2881d59` (`Add isolated native PostgreSQL migration CI`). No new commit, branch, PR, or merge was created during this continuation.
-- The working tree already contained extensive application, configuration, test, backup, and diagnostic artifacts. They are preserved as found; no cleanup, reset, or overwrite was performed.
-- Existing successful results in `EXECUTION_STATUS_20261111.md` and its referenced logs remain accepted. No successful suite was rerun.
-- The GitHub Actions workflow exists locally, but its remote run history could not be read: `gh` is unavailable, and the GitHub API endpoint was inaccessible from the available web tool. Therefore no CI run is claimed as passed or failed.
+- Repository: `mamuin07812-jpg/Hall-C`.
+- Active continuation branch for this task: `fix/native-postgres-runner-temp-20261112`.
+- PR #7 is OPEN and NOT MERGED; head commit: `207ec266707d7bd81bb89a7b34add2d44c76c03c`.
+- The native PostgreSQL/PostgREST workflow run `43214017213` completed successfully on commit `63522e4cbd74d0e71b97d2558e2ee266eda25d0d`. It included the new registration contract test. The later `207ec26` commit only updates this checkpoint, so it does not require another CI run.
+- Do not treat the earlier repository-state and CI-access statements below as current: they are preserved historical notes from the initial checkpoint and were superseded by the PR #7 verification sections further down.
+- No PR merge, production deployment, database migration against a live service, or Flutter/Admin/Firebase behavior change was performed.
 
-## Last confirmed incomplete work
+## Current registration contract findings
 
-The native PostgreSQL 17.6/Supabase migration gate remains the first unfinished technical task. On 2026-11-12, local uncommitted edits were present in:
+- `REGISTRATION_COMPATIBILITY_20261112.md` documents the read-only comparison of Flutter/Admin and migrations 001–005.
+- `otp_proof_test/registration_contract.test.mjs` adds six static contract tests. Local result: 6/6; the PR workflow containing the new test passed in run `43214017213`.
+- Current student and teacher signup remain Firebase Auth + Firestore. Neither calls Supabase RPC or exchanges an OTP proof for a Supabase session.
+- Student UI captures one full name and student ID; candidate RPC requires four name components plus student ID. Do not split a full name heuristically.
+- Final approved-roster import contract is migration 004: JSON rows with `university_id`, `email`, `full_name`, `department`, `stage`, `hall`, `enabled`; Admin currently has no roster import path.
+- Student setup currently captures stage/group only; candidate completion RPC also requires gender and exact roster stage/hall match.
+- Teacher inputs are name, employee ID, and free-text specialization; SQL has a fixed specialization allow-list.
+- Migration 005 requires signed OTP proof claims bound to Firebase UID, email, purpose, expiry, and one-time JTI consumption. Firebase email-link verification is not equivalent.
+- The duplicate assignment of `p_great_grandfather_name` to both `great_grandfather_name` and `family_name` remains unresolved. Do not change it without an explicit data-model decision.
+- These are compatibility findings only; no application integration or production readiness is claimed.
 
-- `.github/workflows/schoolivia-native-migrations.yml`: use the Supabase image's `supabase_admin` bootstrap role, explicitly create the run-specific test database, create connection files in the job, and use the PostgreSQL 17 `pg_dump` binary.
-- `otp_proof_test/native_postgres_test.mjs`: redact diagnostic secrets on dump failure and add checks for private-schema visibility, RPC contracts, and registration-field mapping.
+## Safety and continuation constraints
 
-These edits were discovered in the working tree and preserved. They have not been committed or validated by a new test run in this continuation. Continue by reviewing these exact diffs and, when a qualified disposable PostgreSQL 17.6 runner is available, run the existing native CI job once. Do not target existing local/WSL Supabase services or protected databases.
+- Keep PR #7 open; do not merge it without explicit instruction.
+- Do not modify Flutter, Admin, Firebase Auth/Firestore/FCM, OTP Worker/D1, production Supabase, or protected local databases as part of contract review.
+- Do not apply migrations to existing WSL/local Supabase services. Native PostgreSQL validation must remain disposable and isolated.
+- Do not rerun successful suites without a code/test change that requires it.
+- Any future app integration needs an approved design for student name semantics, roster import format/authorization, teacher specialization values, gender collection, and signed OTP-proof issuance/consumption. Keep the existing Firebase login/OTP behavior intact until a separately approved migration plan exists.
 
-## Safety blockers and next continuation
+## Historical checkpoint notes
 
-- No native PostgreSQL or Docker runtime is available on Windows; the prior status records WSL as stopped. Do not start or alter it as a shortcut.
-- The deployed OTP Worker/D1 provenance and disposable remote clone remain separate blocked gates. The existing status describes the absence of authenticated Cloudflare read-only access. Do not contact production services or infer deployed compatibility from the local test derivative.
-- No migration, backup, database, container, application service, Firebase resource, Worker, or production service was created, altered, or deployed in this continuation.
-- Next action: obtain/read the native PostgreSQL CI result through an available authenticated GitHub Actions interface; if absent, use the existing workflow on the current PR/branch once. Preserve this branch and PR. Record the result and any narrowly scoped fix in a new dated checkpoint before proceeding.
+The sections below preserve earlier diagnostic history. Their branch names, CI status, and "next action" statements describe the state at the time they were written; they are not the current state above.
 
 ## CI failure 43175741765 follow-up
 
