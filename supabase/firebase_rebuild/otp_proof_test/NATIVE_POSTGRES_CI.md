@@ -1,0 +1,11 @@
+# Native PostgreSQL migration CI
+
+`.github/workflows/schoolivia-native-migrations.yml` runs migrations `001_schoolivia.sql` through `005_otp_proof_registration.sql` using the existing `native_postgres_test.mjs` runner. The database image is `supabase/postgres:17.6.1.136`; this project sets `db.major_version = 17` in `supabase/config.toml`. The Supabase Docker changelog identifies that image as its PostgreSQL 17 default. PostgREST is pinned to v14.18.
+
+Each GitHub Actions job starts a fresh disposable container, creates a run-specific empty `schoolivia_test_<run>_<attempt>` database, binds PostgreSQL to host loopback at port 18432, and removes the container in an `always()` cleanup step. Only synthetic roles, keys, JWTs, roster rows, and other test fixtures are used. No repository secrets or production credentials are needed.
+
+Before the runner invokes `psql`, `pg_dump`, or PostgREST, it validates that the PostgreSQL service file and PostgREST URI both target loopback, use the dedicated 18000–18999 port range, use a `schoolivia_test_*` database, and authenticate PostgREST as `authenticator`. It then confirms the server-side database name, port, container address (when running in CI), emptiness, required roles, and `pgcrypto` availability. Unsafe target checks have unit tests and a runner-level preflight test that proves rejection happens before database tools are invoked.
+
+The runner applies migrations 001–005 and exercises extension placement, RLS catalogs and visibility, PostgREST registration RPCs, invalid identity/proof rejection, duplicate and replay handling, concurrent one-use proof consumption, failed-transaction rollback, and safe retry. The `storage` schema in this test is a minimal SQL fixture required by the migrations. The workflow does **not** start Supabase Storage and does not claim to test the Storage HTTP API.
+
+Local checks in an environment without PostgreSQL or Docker can run the connection guard, native preflight, migration rewrite, and connection-file safety unit tests. A complete native result is produced only by the isolated GitHub Actions job; this workspace does not have Docker or native PostgreSQL binaries, and that CI job was not remotely dispatched from this session.
