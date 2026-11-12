@@ -19,6 +19,7 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_challenge_purpose_migration.sql'
       - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
   pull_request:
@@ -37,6 +38,7 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_challenge_purpose_migration.sql'
       - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
 
