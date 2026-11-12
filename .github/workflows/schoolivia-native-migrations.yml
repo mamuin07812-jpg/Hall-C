@@ -13,6 +13,9 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs'
+      - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
   pull_request:
     paths:
@@ -24,6 +27,9 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs'
+      - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
 
 permissions:
@@ -134,6 +140,7 @@ jobs:
             supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs \
             supabase/firebase_rebuild/otp_proof_test/native_test_migrations.test.mjs \
             supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs
+            supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs
           node supabase/firebase_rebuild/otp_proof_test/native_postgres_test.mjs
 
       - name: Stop only the disposable PostgreSQL container
