@@ -60,6 +60,28 @@ async function verifyHmacJwt(token, secret, nowSeconds) {
   return claims;
 }
 
+async function signEs256Jwt(payload, privateJwkValue, kid) {
+  const privateJwk = typeof privateJwkValue === 'string' ? JSON.parse(privateJwkValue) : privateJwkValue;
+  if (!privateJwk || privateJwk.kty !== 'EC' || privateJwk.crv !== 'P-256' || !privateJwk.d || typeof kid !== 'string' || !kid) {
+    throw new Error('invalid Supabase ES256 signing key');
+  }
+  const key = await crypto.subtle.importKey('jwk', privateJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const encodedHeader = encodeBase64Url(encoder.encode(JSON.stringify({ alg: 'ES256', typ: 'JWT', kid })));
+  const encodedPayload = encodeBase64Url(encoder.encode(JSON.stringify(payload)));
+  const input = `${encodedHeader}.${encodedPayload}`;
+  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(input));
+  return `${input}.${encodeBase64Url(new Uint8Array(signature))}`;
+}
+
+async function signSupabaseJwt(payload, env) {
+  // Prefer an asymmetric key when the target PostgREST/Supabase instance uses a JWK set.
+  if (env.SUPABASE_JWT_PRIVATE_JWK) {
+    return signEs256Jwt(payload, env.SUPABASE_JWT_PRIVATE_JWK, env.SUPABASE_JWT_KID);
+  }
+  if (env.SUPABASE_JWT_SECRET) return signHmacJwt(payload, env.SUPABASE_JWT_SECRET);
+  throw new Error('Supabase signing key unavailable');
+}
+
 /**
  * Call only after the existing OTP verifier has accepted and consumed the code.
  * The ticket is intentionally email+purpose bound because the current app
@@ -125,7 +147,7 @@ export function createExchangeWorker({ fetchImpl = fetch, now = () => Math.floor
           return json({ ok: false, error: 'Invalid request' }, 400);
         }
         const projectId = env.FIREBASE_PROJECT_ID;
-        if (!projectId || !env.OTP_PROOF_SECRET || !env.SUPABASE_JWT_SECRET) {
+        if (!projectId || !env.OTP_PROOF_SECRET || (!env.SUPABASE_JWT_SECRET && !env.SUPABASE_JWT_PRIVATE_JWK)) {
           return json({ ok: false, error: 'Exchange is not configured' }, 503);
         }
         const timestamp = now();
@@ -158,7 +180,7 @@ export function createExchangeWorker({ fetchImpl = fetch, now = () => Math.floor
           otp_jti: otpClaims.jti,
           otp_exp: otpClaims.exp,
         };
-        const accessToken = await signHmacJwt(supabaseClaims, env.SUPABASE_JWT_SECRET);
+        const accessToken = await signSupabaseJwt(supabaseClaims, env);
         return json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresAt - timestamp });
       } catch {
         return json({ ok: false, error: 'Registration exchange rejected' }, 401);
