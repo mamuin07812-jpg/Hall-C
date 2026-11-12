@@ -14,29 +14,30 @@ const workerPath = new URL('./otp_proof_worker_d1_draft.mjs', import.meta.url).p
 let mf;
 let db;
 
-const schema = `
-CREATE TABLE IF NOT EXISTS otp_challenges (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL,
-  code_hash TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  attempts INTEGER NOT NULL DEFAULT 0,
-  max_attempts INTEGER NOT NULL DEFAULT 5,
-  created_at INTEGER NOT NULL,
-  last_sent_at INTEGER NOT NULL,
-  purpose TEXT
-);
-CREATE INDEX IF NOT EXISTS otp_challenges_email_id_idx ON otp_challenges(email, id DESC);
-CREATE TABLE IF NOT EXISTS otp_test_outbox (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL,
-  code TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-`;
+async function createSchema() {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS otp_challenges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    created_at INTEGER NOT NULL,
+    last_sent_at INTEGER NOT NULL,
+    purpose TEXT
+  )`).run();
+  await db.prepare('CREATE INDEX IF NOT EXISTS otp_challenges_email_id_idx ON otp_challenges(email, id DESC)').run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS otp_test_outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    code TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`).run();
+}
 
 async function resetDb() {
-  await db.exec('DELETE FROM otp_challenges; DELETE FROM otp_test_outbox;');
+  await db.prepare('DELETE FROM otp_challenges').run();
+  await db.prepare('DELETE FROM otp_test_outbox').run();
 }
 async function requestOtp(email, purpose) {
   const body = { email };
@@ -98,7 +99,7 @@ before(async () => {
   });
   await mf.ready;
   db = await mf.getD1Database('DB');
-  await db.exec(schema);
+  await createSchema();
 });
 
 after(async () => {
@@ -229,7 +230,7 @@ test('two concurrent verification requests consume one OTP challenge exactly onc
 });
 
 test('D1 errors fail closed without reporting OTP verification success', async () => {
-  await db.exec('DROP TABLE otp_challenges;');
+  await db.prepare('DROP TABLE otp_challenges').run();
   const response = await verifyOtp('unavailable@example.invalid', '246810');
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { ok: false, error: 'OTP service temporarily unavailable' });
