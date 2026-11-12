@@ -35,4 +35,12 @@ The candidate SQL registration inserts in migrations 001, 003, 004, and 005 prev
 9. The name semantics are resolved: `great_grandfather_name` is the fourth student name component; `family_name` is separate. The prior local-project capture confirms the four student fields but shows legacy Firestore duplication into `familyName`. Candidate SQL mappings keep the fields separate. The final RPC enforces all four names as required.
 10. GitHub Actions run 43218575411 passed: 23 static/CSV tests and 23 native PostgreSQL 17 + PostgREST 14.18 checks. This includes the academic completion, localized teacher specialization, OTP proof, replay, concurrency, and RLS cases. The disposable DB was removed after the run.
 
+D1-backed OTP proof integration now passes as well. GitHub Actions run **43222845177** on commit `50bd0ab1b3ec74ecf798c5ee42c27223d603a627` passed:
+- 9/9 Miniflare D1 integration checks, including the nullable-purpose migration preserving legacy challenge rows, exact legacy OTP response, full D1 OTP → Firebase RSA ID-token verification → ES256 Supabase JWT exchange, wrong purpose, attempt lockout, expiry, concurrent one-use challenge, and fail-closed DB errors.
+- 35/35 static, contract, CSV, and crypto tests (including HS256 fallback and ES256 signing with a matching JWK).
+- 23/23 native PostgreSQL 17 + PostgREST 14.18 checks.
+- Disposable PostgreSQL container and temporary Miniflare dependency link were removed. Miniflare 4.20260730.0 was installed under the CI runner temp directory, isolated from app dependencies.
+
+The candidate D1 migration `otp_challenge_purpose_migration.sql` was applied only to a fresh Miniflare D1 database built from the legacy challenge schema. No Cloudflare D1 database was changed.
+
 The contract tests in `registration_contract.test.mjs` pin the current app-side writes and SQL signatures/requirements, including these deliberate mismatches. Their purpose is to expose contract drift, not to claim application integration.
