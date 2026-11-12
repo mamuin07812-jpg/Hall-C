@@ -1,5 +1,11 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Flutter handoff boundary
+
+- GitHub `main` and all available app branches currently show a different `lib/register_page.dart` snapshot (one shared full-name controller, Firebase email-verification link, no OTP routes) from the historical local `C:\\ClassroomHub` capture (four student name controllers plus OTP flow). Do not patch Flutter from the stale GitHub copy.
+- Next action is a read-only source reconciliation inside the user's actual local Codex workspace. Handoff instructions are in `supabase/firebase_rebuild/FLUTTER_LOCAL_SOURCE_RECONCILIATION_20261112.md`.
+- Once the local source map is confirmed, prepare the minimal Flutter bridge patch. Do not switch the app to the un-deployed exchange endpoint or change Firebase Auth/OTP behavior. Production Worker/D1 deployment still needs separate explicit authorization.
+
 ## D1-backed OTP + ES256 exchange integration — CI PASS (2026-11-12)
 
 - The D1 challenge table schema was inspected read-only in the existing test database only. It lacks a `purpose` column. Added an additive draft migration that adds nullable, constrained `purpose`; pre-existing challenges remain NULL and retain the legacy response. No Cloudflare D1 migration was applied remotely.
