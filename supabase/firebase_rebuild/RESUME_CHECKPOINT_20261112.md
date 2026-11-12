@@ -42,3 +42,9 @@ These edits were discovered in the working tree and preserved. They have not bee
 - GitHub Actions run `43208244691` completed with `success` for `Disposable Supabase PostgreSQL 17 migrations 001–005`.
 - The runner installed PostgreSQL 17 client tools, started only its disposable Supabase PostgreSQL 17 container, provisioned synthetic PostgREST roles, downloaded pinned PostgREST 14.18, and passed `Execute native migrations and PostgreSQL/PostgREST checks`; its disposable container cleanup also passed.
 - No migrations were applied to a protected database. No Flutter/Admin changes, production deployment, or merge occurred.
+## Registration contract review progress
+
+- Added `REGISTRATION_COMPATIBILITY_20261112.md` with a field-by-field matrix for Flutter/Admin, Firebase Auth/Firestore, and migrations 001–005; it records the effective roster import contract and integration blockers.
+- Added `otp_proof_test/registration_contract.test.mjs` with six independent static contract tests covering RPC argument names/order/types/returns, final JSON import fields and validation, actual Firestore signup keys and verification flow, academic completion shape/roster matching, Admin roster-import absence, and the unresolved great-grandfather/family-name overlap.
+- The new local test passed 6/6, and `node --check` passed. These are new checks; no previous successful suite was rerun.
+- The test is wired into the native PostgreSQL workflow and its path filter. This intentionally makes a fresh PR workflow run necessary to verify the newly added check; no SQL migration or app behavior was changed. CI result is pending for the next PR head.
