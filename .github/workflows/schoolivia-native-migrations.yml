@@ -147,17 +147,26 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install pinned Miniflare D1 test runtime
+      - name: Install isolated pinned Miniflare D1 test runtime
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --package-lock=false miniflare@4.20260730.0
+          miniflare_root="$RUNNER_TEMP/schoolivia-miniflare"
+          npm install --prefix "$miniflare_root" --no-save --package-lock=false miniflare@4.20260730.0
+          test ! -e supabase/firebase_rebuild/otp_proof_test/node_modules
+          ln -s "$miniflare_root/node_modules" supabase/firebase_rebuild/otp_proof_test/node_modules
 
       - name: Execute D1-backed OTP proof integration tests
         shell: bash
         run: |
           set -euo pipefail
           node --test supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs
+
+      - name: Remove temporary Miniflare dependency link
+        if: always()
+        shell: bash
+        run: |
+          rm -f supabase/firebase_rebuild/otp_proof_test/node_modules
 
       - name: Execute native migrations and PostgreSQL/PostgREST checks
         shell: bash
