@@ -3,7 +3,6 @@ import { generateKeyPairSync, sign as rsaSign, webcrypto } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test, { after, before } from 'node:test';
 import { Miniflare } from 'miniflare';
-import { createExchangeWorker } from './otp_proof_exchange_worker_draft.mjs';
 
 globalThis.crypto ??= webcrypto;
 
@@ -12,6 +11,14 @@ const otpHashSecret = 'test-only-otp-hash-secret';
 const otpProofSecret = 'test-only-otp-proof-secret-at-least-32-bytes';
 const supabaseJwtSecret = 'test-only-supabase-jwt-secret-at-least-32-bytes';
 const workerPath = new URL('./otp_proof_worker_d1_draft.mjs', import.meta.url).pathname;
+const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { format: 'jwk' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+const testJwks = JSON.stringify({
+  keys: [{ ...publicKey, kid: 'miniflare-test-key', alg: 'RS256', use: 'sig' }],
+});
 let mf;
 let db;
 
@@ -95,6 +102,7 @@ before(async () => {
       OTP_PROOF_SECRET: otpProofSecret,
       SUPABASE_JWT_SECRET: supabaseJwtSecret,
       FIREBASE_PROJECT_ID: projectId,
+      TEST_JWKS_JSON: testJwks,
     },
   });
   await mf.ready;
@@ -146,18 +154,7 @@ test('registration OTP produces an email- and purpose-bound ticket, then exchang
   assert.equal(typeof proof.otp_ticket, 'string');
 
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { format: 'jwk' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-  const exchange = createExchangeWorker({
-    now: () => nowSeconds,
-    fetchImpl: async () => new Response(JSON.stringify({
-      keys: [{ ...publicKey, kid: 'miniflare-test-key', alg: 'RS256', use: 'sig' }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }),
-  });
-  const response = await exchange.fetch(new Request('https://schoolivia-test.invalid/exchange', {
+  const response = await mf.dispatchFetch('https://schoolivia-test.invalid/exchange', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -169,10 +166,6 @@ test('registration OTP produces an email- and purpose-bound ticket, then exchang
       }),
       otp_ticket: proof.otp_ticket,
     }),
-  }), {
-    FIREBASE_PROJECT_ID: projectId,
-    OTP_PROOF_SECRET: otpProofSecret,
-    SUPABASE_JWT_SECRET: supabaseJwtSecret,
   });
   assert.equal(response.status, 200);
   const exchanged = await response.json();
