@@ -9,7 +9,6 @@ globalThis.crypto ??= webcrypto;
 const projectId = 'schoolivia-native-test';
 const otpHashSecret = 'test-only-otp-hash-secret';
 const otpProofSecret = 'test-only-otp-proof-secret-at-least-32-bytes';
-const supabaseJwtSecret = 'test-only-supabase-jwt-secret-at-least-32-bytes';
 const workerPath = new URL('./otp_proof_worker_d1_draft.mjs', import.meta.url).pathname;
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -19,6 +18,12 @@ const { publicKey, privateKey } = generateKeyPairSync('rsa', {
 const testJwks = JSON.stringify({
   keys: [{ ...publicKey, kid: 'miniflare-test-key', alg: 'RS256', use: 'sig' }],
 });
+const { publicKey: supabasePublicKey, privateKey: supabasePrivateKey } = generateKeyPairSync('ec', {
+  namedCurve: 'prime256v1',
+  publicKeyEncoding: { format: 'jwk' },
+  privateKeyEncoding: { format: 'jwk' },
+});
+const supabaseKid = 'schoolivia-miniflare-es256';
 let mf;
 let db;
 
@@ -72,6 +77,20 @@ async function capturedCode(email) {
 function decodeJwtPayload(token) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
 }
+
+async function verifySupabaseEs256(token) {
+  const [header, payload, signature] = token.split('.');
+  const decodedHeader = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+  assert.equal(decodedHeader.alg, 'ES256');
+  assert.equal(decodedHeader.kid, supabaseKid);
+  const key = await crypto.subtle.importKey('jwk', supabasePublicKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+  return crypto.subtle.verify(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    Buffer.from(signature, 'base64url'),
+    new TextEncoder().encode(`${header}.${payload}`),
+  );
+}
 function makeFirebaseToken({ uid, email, privateKey, nowSeconds }) {
   const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
   const header = b64({ alg: 'RS256', typ: 'JWT', kid: 'miniflare-test-key' });
@@ -100,7 +119,8 @@ before(async () => {
       TEST_OTP_CODE: '246810',
       OTP_HASH_SECRET: otpHashSecret,
       OTP_PROOF_SECRET: otpProofSecret,
-      SUPABASE_JWT_SECRET: supabaseJwtSecret,
+      SUPABASE_JWT_PRIVATE_JWK: JSON.stringify(supabasePrivateKey),
+      SUPABASE_JWT_KID: supabaseKid,
       FIREBASE_PROJECT_ID: projectId,
       TEST_JWKS_JSON: testJwks,
     },
@@ -171,6 +191,7 @@ test('registration OTP produces an email- and purpose-bound ticket, then exchang
   assert.equal(response.status, 200);
   const exchanged = await response.json();
   assert.equal(exchanged.token_type, 'bearer');
+  assert.equal(await verifySupabaseEs256(exchanged.access_token), true, 'Worker ES256 JWT must verify with the matching Supabase public JWK');
   const claims = decodeJwtPayload(exchanged.access_token);
   assert.equal(claims.iss, `https://securetoken.google.com/${projectId}`);
   assert.equal(claims.aud, projectId);
