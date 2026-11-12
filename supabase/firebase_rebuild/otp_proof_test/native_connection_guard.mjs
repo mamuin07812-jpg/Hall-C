@@ -45,7 +45,8 @@ export function assertExpectedServerAddress(actual, expected) {
     assert.ok(['127.0.0.1', '::1'].includes(actual), 'PostgreSQL server address must be loopback outside a containerized CI job');
     return true;
   }
-  assert.equal(actual, expected, 'PostgreSQL server address must match the ephemeral CI container address');
+  const actualAddress = String(actual).endsWith('/32') ? String(actual).slice(0, -3) : String(actual);
+  assert.equal(actualAddress, expected, 'PostgreSQL server address must match the ephemeral CI container address');
   const octets = String(expected).split('.').map(Number);
   const privateIpv4 = octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255)
     && (octets[0] === 10 || (octets[0] === 192 && octets[1] === 168)
