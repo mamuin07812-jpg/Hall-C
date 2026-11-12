@@ -40,8 +40,6 @@ jobs:
       SCHOOLIVIA_TEST_DB: schoolivia_test_${{ github.run_id }}_${{ github.run_attempt }}
       POSTGRES_PASSWORD: schoolivia-ci-ephemeral-only-not-a-secret
       POSTGREST_TEST_PASSWORD: ci-authenticator-only
-      PGSERVICEFILE: ${{ runner.temp }}/schoolivia-ci.pg_service.conf
-      SCHOOLIVIA_TEST_POSTGREST_URI_FILE: ${{ runner.temp }}/schoolivia-ci.postgrest-uri
       SCHOOLIVIA_TEST_PG_SERVICE: schoolivia_ci
       SCHOOLIVIA_TEST_POSTGREST_PORT: '18433'
       SCHOOLIVIA_PSQL: psql
@@ -92,7 +90,9 @@ jobs:
           set -euo pipefail
           chmod 700 "$RUNNER_TEMP"
           umask 077
-          cat > "$PGSERVICEFILE" <<EOF
+          service_file="$RUNNER_TEMP/schoolivia-ci.pg_service.conf"
+          postgrest_uri_file="$RUNNER_TEMP/schoolivia-ci.postgrest-uri"
+          cat > "$service_file" <<EOF
           [schoolivia_ci]
           host=127.0.0.1
           port=18432
@@ -100,11 +100,13 @@ jobs:
           user=postgres
           password=$POSTGRES_PASSWORD
           EOF
-          cat > "$SCHOOLIVIA_TEST_POSTGREST_URI_FILE" <<EOF
+          cat > "$postgrest_uri_file" <<EOF
           postgres://authenticator:$POSTGREST_TEST_PASSWORD@127.0.0.1:18432/$SCHOOLIVIA_TEST_DB
           EOF
-          PGSERVICEFILE="$PGSERVICEFILE" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
+          PGSERVICEFILE="$service_file" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
             "create role anon nologin; create role authenticated nologin; create role service_role nologin; create role authenticator login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
+          echo "PGSERVICEFILE=$service_file" >> "$GITHUB_ENV"
+          echo "SCHOOLIVIA_TEST_POSTGREST_URI_FILE=$postgrest_uri_file" >> "$GITHUB_ENV"
 
       - name: Download pinned PostgREST 14.18
         shell: bash
