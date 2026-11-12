@@ -270,8 +270,8 @@ begin
  v_email:=nullif(current_setting('request.jwt.claims',true)::jsonb->>'email','');
  if v_email is null then raise exception 'verified account email required'; end if;
  if exists(select 1 from profiles where firebase_uid=v_uid) then raise exception 'profile already exists'; end if;
- insert into profiles(firebase_uid,role,first_name,father_name,grandfather_name,great_grandfather_name,family_name,full_name,email,student_id,department,email_verified,email_verified_at,registration_status,profile_completed)
- values(v_uid,'student',nullif(trim(p_first_name),''),nullif(trim(p_father_name),''),nullif(trim(p_grandfather_name),''),nullif(trim(p_great_grandfather_name),''),nullif(trim(p_great_grandfather_name),''),concat_ws(' ',nullif(trim(p_first_name),''),nullif(trim(p_father_name),''),nullif(trim(p_grandfather_name),''),nullif(trim(p_great_grandfather_name),'')),v_email,nullif(trim(p_student_id),''),'English Language',true,now(),'academic_pending',false)
+ insert into profiles(firebase_uid,role,first_name,father_name,grandfather_name,great_grandfather_name,full_name,email,student_id,department,email_verified,email_verified_at,registration_status,profile_completed)
+ values(v_uid,'student',nullif(trim(p_first_name),''),nullif(trim(p_father_name),''),nullif(trim(p_grandfather_name),''),nullif(trim(p_great_grandfather_name),''),concat_ws(' ',nullif(trim(p_first_name),''),nullif(trim(p_father_name),''),nullif(trim(p_grandfather_name),''),nullif(trim(p_great_grandfather_name),'')),v_email,nullif(trim(p_student_id),''),'English Language',true,now(),'academic_pending',false)
  returning id into v_id; return v_id;
 end $$;
 
