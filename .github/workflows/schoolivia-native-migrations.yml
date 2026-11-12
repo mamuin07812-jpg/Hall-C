@@ -43,7 +43,7 @@ jobs:
       SCHOOLIVIA_TEST_PG_SERVICE: schoolivia_ci
       SCHOOLIVIA_TEST_POSTGREST_PORT: '18433'
       SCHOOLIVIA_PSQL: psql
-      SCHOOLIVIA_PG_DUMP: pg_dump
+      SCHOOLIVIA_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
     steps:
       - uses: actions/checkout@v4
 
