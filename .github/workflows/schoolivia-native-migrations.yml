@@ -67,13 +67,13 @@ jobs:
             --name "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --publish 127.0.0.1:18432:18432 \
             --env POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-            --env POSTGRES_USER=postgres \
+            --env POSTGRES_USER=supabase_admin \
             --env POSTGRES_DB="$SCHOOLIVIA_TEST_DB" \
             supabase/postgres:17.6.1.136 \
             -c port=18432 -c listen_addresses='*'
           ready=false
           for attempt in $(seq 1 60); do
-            if pg_isready --host 127.0.0.1 --port 18432 --username postgres --dbname "$SCHOOLIVIA_TEST_DB"; then ready=true; break; fi
+            if pg_isready --host 127.0.0.1 --port 18432 --username supabase_admin --dbname "$SCHOOLIVIA_TEST_DB"; then ready=true; break; fi
             sleep 2
           done
           if [[ "$ready" != true ]]; then
@@ -97,7 +97,7 @@ jobs:
           host=127.0.0.1
           port=18432
           dbname=$SCHOOLIVIA_TEST_DB
-          user=postgres
+          user=supabase_admin
           password=$POSTGRES_PASSWORD
           EOF
           cat > "$postgrest_uri_file" <<EOF
