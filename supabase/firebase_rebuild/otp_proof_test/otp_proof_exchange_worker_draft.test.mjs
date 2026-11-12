@@ -48,7 +48,10 @@ async function ticket(overrides = {}) {
     nowSeconds: now, expiresInSeconds: 180, ...overrides,
   });
 }
-async function exchange({ idToken = firebaseToken(), otpTicket = await ticket(), workerInstance = worker } = {}) {
+async function exchange(options = {}) {
+  const idToken = options.idToken ?? firebaseToken();
+  const otpTicket = options.otpTicket ?? await ticket();
+  const workerInstance = options.workerInstance ?? worker;
   return workerInstance.fetch(new Request('https://test.invalid/exchange', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
