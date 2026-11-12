@@ -1,5 +1,14 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Registration contract and roster-import tooling follow-up — 2026-11-12
+
+- Corrected the academic-completion compatibility review: the captured `register_page.dart` signup completion explicitly requires and writes gender, stage, and hall/group, so these values match `complete_student_registration(p_gender,p_stage,p_hall)`. The separate `account_gate.dart` fallback/profile path is distinct and still has no Supabase RPC; the test name/report now identify it accurately.
+- Teacher registration specialization is free text in the captured app. Candidate migration 005 now normalizes the 10 established subject names in English and their known Arabic aliases to canonical English; unknown values are rejected before OTP proof consumption. Added static contract and native PostgREST tests for Arabic normalization and unknown-value rejection.
+- Added a blank seven-column CSV template at `supabase/firebase_rebuild/approved_roster_template.csv` and an offline validator at `otp_proof_test/validate_roster_csv.mjs`. It checks exact headers, required fields, email format, duplicate IDs/emails, stage, hall, enabled boolean, CSV quoting, and the 5,000-row batch limit. It prints validation errors without echoing student data and does not upload or import anything.
+- Added seven synthetic validator tests and included them in the PR's native migration workflow. Latest workflow run **43217802990** is queued; prior run 43217555776 was cancelled by the subsequent branch update, so do not treat it as a test failure or pass.
+- No Flutter, Admin, Firebase, OTP Worker, local Supabase, or production data/service changes. PR #7 remains open/unmerged.
+
+
 ## Required student-name validation — CI PASS (2026-11-12)
 
 - Final candidate migration `005_otp_proof_registration.sql` now rejects a blank or whitespace-only value in any of the four student name components: first, father, grandfather, great-grandfather.
