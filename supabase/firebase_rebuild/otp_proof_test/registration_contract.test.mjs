@@ -116,10 +116,19 @@ test('Admin has individual Firestore student management, but no approved-roster 
   assert.doesNotMatch(admin, /approved_students|import_approved_students|schoolivia\s*\.\s*rpc/i);
 });
 
-test('great-grandfather and family-name overlap remains surfaced pending a model decision', () => {
-  for (const [name, sql] of [['003', sql003], ['004', sql004], ['005', sql005]]) {
-    assert.match(sql, /great_grandfather_name,\s*family_name,[\s\S]*?nullif\(trim\(p_great_grandfather_name\),\s*''\),\s*nullif\(trim\(p_great_grandfather_name\),\s*''\)/i, `${name} currently writes the same input into both columns`);
+test('student great-grandfather name is stored separately from family name', () => {
+  const migrations = [
+    ['001', sql001],
+    ['003', sql003],
+    ['004', sql004],
+    ['005', sql005],
+  ];
+  for (const [name, sql] of migrations) {
+    const registration = functionDefinition(sql, 'register_student').sql;
+    assert.match(registration, /great_grandfather_name/i, `${name} keeps the great-grandfather field`);
+    assert.doesNotMatch(registration, /great_grandfather_name\s*,\s*family_name/i, `${name} must not map great-grandfather into family_name`);
+    assert.doesNotMatch(registration, /nullif\(trim\(p_great_grandfather_name\),\s*''\),\s*nullif\(trim\(p_great_grandfather_name\),\s*''\)/i, `${name} must not duplicate the input value`);
   }
+  assert.match(sql001, /family_name text/);
   assert.match(sql001, /p_family_name text default null/);
-  assert.match(sql001, /p_great_grandfather_name text/);
 });
