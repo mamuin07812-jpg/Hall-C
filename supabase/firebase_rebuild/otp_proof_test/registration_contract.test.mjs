@@ -55,6 +55,14 @@ test('student and teacher RPC argument names, order, types, and return types sta
   assert.equal(functionDefinition(sql005, 'complete_student_registration').result, 'void');
 });
 
+test('student registration requires every one of the four name components on the server', () => {
+  const registration = functionDefinition(sql005, 'register_student').sql;
+  for (const parameter of ['p_first_name', 'p_father_name', 'p_grandfather_name', 'p_great_grandfather_name']) {
+    assert.match(registration, new RegExp(`nullif\\(trim\\(${parameter}\\), ''\\) is null`), `${parameter} must be required by the database`);
+  }
+  assert.match(registration, /all four student name components are required/);
+});
+
 test('final approved roster importer requires the seven typed fields and admin authority', () => {
   const finalImporter = functionDefinition(sql004, 'import_approved_students');
   assert.deepEqual(argumentsOf(finalImporter), ['p_rows jsonb']);
