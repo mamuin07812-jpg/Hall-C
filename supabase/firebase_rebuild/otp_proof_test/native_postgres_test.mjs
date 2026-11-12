@@ -69,9 +69,9 @@ const dumpResult = spawnSync(pgDump, ['--format=custom', '--file', dumpFile], { 
 if (dumpResult.status !== 0) {
   let diagnostic = `${dumpResult.stderr ?? ''}${dumpResult.stdout ?? ''}`.trim();
   for (const secret of [serviceTarget.password, parsed.password, process.env.POSTGRES_PASSWORD, process.env.POSTGREST_TEST_PASSWORD]) {
-  diagnostic = diagnostic.slice(0, 1000);
+    if (secret) diagnostic = diagnostic.replaceAll(secret, '[REDACTED]');
   }
-  diagnostic = diagnostic.replace(/(postgres(?:ql)?:\\/\\/[^:\\s]+:)[^@\\s]+@/gi, '$1[REDACTED]@').slice(0, 1000);
+  diagnostic = diagnostic.slice(0, 1000);
   throw new Error(`pg_dump failed (exit ${dumpResult.status}); ${diagnostic || 'no diagnostic output'}`);
 }
 const backupHash = secretFreeFileHash(dumpFile);
