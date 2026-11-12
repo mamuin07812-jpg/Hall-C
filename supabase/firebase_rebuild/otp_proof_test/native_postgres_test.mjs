@@ -65,7 +65,15 @@ assert.equal(decodeURIComponent(parsed.username), 'authenticator', 'PostgREST mu
 
 const backupDir = await mkdtemp(path.join(tmpdir(), 'schoolivia-native-pre-migration-'));
 const dumpFile = path.join(backupDir, `${database}.dump`);
-run(pgDump, ['--format=custom', '--file', dumpFile]);
+const dumpResult = spawnSync(pgDump, ['--format=custom', '--file', dumpFile], { encoding: 'utf8', windowsHide: true, env });
+if (dumpResult.status !== 0) {
+  let diagnostic = `${dumpResult.stderr ?? ''}${dumpResult.stdout ?? ''}`.trim();
+  for (const secret of [serviceTarget.password, parsed.password, process.env.POSTGRES_PASSWORD, process.env.POSTGREST_TEST_PASSWORD]) {
+    if (secret) diagnostic = diagnostic.replaceAll(secret, '[REDACTED]');
+  }
+  diagnostic = diagnostic.replace(/(postgres(?:ql)?:\\/\\/[^:\\s]+:)[^@\\s]+@/gi, '$1[REDACTED]@').slice(0, 1000);
+  throw new Error(`pg_dump failed (exit ${dumpResult.status}); ${diagnostic || 'no diagnostic output'}`);
+}
 const backupHash = secretFreeFileHash(dumpFile);
 assert.equal(secretFreeFileHash(dumpFile), backupHash, 'pre-change dump checksum verification failed');
 await rm(backupDir, { recursive: true, force: true });
