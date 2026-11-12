@@ -59,9 +59,9 @@ The next test layer is now implemented in `otp_proof_test/otp_proof_worker_d1_dr
 - `/verify-otp` keeps the exact legacy `{ok:true,verified:true}` response when purpose is absent.
 - Registration challenges return a short-lived signed ticket only after an atomic conditional delete confirms that the challenge was consumed once.
 - Student and teacher purposes are allow-listed; invalid attempts, expiry, replay, concurrent requests, and D1 errors fail closed.
-- The D1 test then passes the ticket with a synthetic RSA-signed Firebase ID token through the exchange prototype and verifies the Supabase JWT claims.
+- The D1 test then passes the ticket with a synthetic RSA-signed Firebase ID token through the exchange prototype and verifies the Supabase JWT claims. The draft now supports both ES256 (private JWK + kid) and HS256 signing; the final deployment must match the target PostgREST/Supabase JWT key configuration.
 
-GitHub Actions run **43221275400** passed **8/8 Miniflare D1 tests**, **34/34 static/contract/CSV/exchange tests**, and **23/23 native PostgreSQL/PostgREST checks**. This run was before the additive migration-specific regression was added. A follow-up CI run is validating that migration against a legacy challenge table.
+GitHub Actions run **43221976244** passed **9/9 Miniflare D1 tests**, **34/34 static/contract/CSV/exchange tests**, and **23/23 native PostgreSQL/PostgREST checks**. It includes the additive migration regression against the legacy challenge schema and a full Miniflare Worker route from D1 OTP verification through Firebase ID-token verification and Supabase JWT issuance. A subsequent run with the pinned Miniflare 4 runtime and ES256 support is validating the final changes.
 
 A read-only schema-only inspection of the existing *test* D1 database `schoolivia-un-otp-state-test-20261111` showed `otp_challenges` has columns `id,email,code_hash,expires_at,attempts,max_attempts,created_at,last_sent_at` and an email/id index, but no `purpose` column. That database was not modified. Production D1 rows, OTP hashes, and secrets were not queried.
 
