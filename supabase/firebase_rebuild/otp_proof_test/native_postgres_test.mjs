@@ -65,7 +65,15 @@ assert.equal(decodeURIComponent(parsed.username), 'authenticator', 'PostgREST mu
 
 const backupDir = await mkdtemp(path.join(tmpdir(), 'schoolivia-native-pre-migration-'));
 const dumpFile = path.join(backupDir, `${database}.dump`);
-run(pgDump, ['--format=custom', '--file', dumpFile]);
+const dumpResult = spawnSync(pgDump, ['--format=custom', '--file', dumpFile], { encoding: 'utf8', windowsHide: true, env });
+if (dumpResult.status !== 0) {
+  let diagnostic = `${dumpResult.stderr ?? ''}${dumpResult.stdout ?? ''}`.trim();
+  for (const secret of [serviceTarget.password, parsed.password, process.env.POSTGRES_PASSWORD, process.env.POSTGREST_TEST_PASSWORD]) {
+    if (secret) diagnostic = diagnostic.replaceAll(secret, '[REDACTED]');
+  }
+  diagnostic = diagnostic.slice(0, 1000);
+  throw new Error(`pg_dump failed (exit ${dumpResult.status}); ${diagnostic || 'no diagnostic output'}`);
+}
 const backupHash = secretFreeFileHash(dumpFile);
 assert.equal(secretFreeFileHash(dumpFile), backupHash, 'pre-change dump checksum verification failed');
 await rm(backupDir, { recursive: true, force: true });
@@ -96,6 +104,7 @@ assert.ok(Number(sql("select count(*) from pg_class where relnamespace='schooliv
 assert.ok(Number(sql("select count(*) from pg_policies where schemaname='schoolivia'")) >= 39, 'candidate RLS policy set is incomplete');
 assert.equal(sql("select data_type from information_schema.columns where table_schema='schoolivia_internal' and table_name='otp_proof_uses' and column_name='jti'"), 'text', 'replay key must preserve opaque text jti values');
 assert.equal(sql("select count(*) from pg_indexes where schemaname='schoolivia_internal' and tablename='otp_proof_uses' and indexdef ilike '%UNIQUE%'"), '1', 'replay ledger must have a unique jti key');
+assert.equal(sql("select bool_and(not has_schema_privilege(rolname,'schoolivia_internal','USAGE')) from pg_roles where rolname in ('anon','authenticated','service_role')"), 't', 'API roles must not have usage on the private schema');
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const jwk = { ...publicKey.export({ format: 'jwk' }), alg: 'ES256', use: 'sig', kid: 'schoolivia-native-test' };
@@ -140,6 +149,41 @@ try {
   await waitReady();
   const studentJwt = token('native-student-uid', 'student-native@example.invalid', { purpose: 'student.register' });
   const teacherJwt = token('native-teacher-uid', 'teacher-native@example.invalid', { purpose: 'teacher.register' });
+  await check('PostgREST exposes schoolivia while keeping the OTP schema private', async () => {
+    assert.deepEqual(pgrstEnv.PGRST_DB_SCHEMAS.split(',').map(value => value.trim()), ['schoolivia']);
+    const exposed = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' } });
+    assert.equal(exposed.status, 200, `schoolivia RPC route is not exposed or has an unexpected signature: ${exposed.status}`);
+    const privateLedger = await http('/otp_proof_uses?select=jti', { jwt: studentJwt });
+    assert.equal(privateLedger.status, 404, 'internal OTP ledger must not be reachable through PostgREST');
+  });
+  await check('candidate RPC names, argument types, and result types remain stable', async () => {
+    const signatures = [
+      ["schoolivia.register_student(text,text,text,text,text)", 'p_first_name text, p_father_name text, p_grandfather_name text, p_great_grandfather_name text, p_student_id text|uuid'],
+      ["schoolivia.register_teacher(text,text,text)", 'p_name text, p_employee_id text, p_specialization text|uuid'],
+      ["schoolivia.complete_student_registration(text,text,text)", 'p_gender text, p_stage text, p_hall text|void'],
+      ["schoolivia.import_approved_students(jsonb)", 'p_rows jsonb|jsonb'],
+    ];
+    for (const [signature, expected] of signatures) {
+      assert.equal(sql(`select pg_get_function_arguments('${signature}'::regprocedure) || '|' || pg_get_function_result('${signature}'::regprocedure)`), expected, `${signature} contract changed`);
+    }
+  });
+  await check('current Firestore signup keys map to typed Schoolivia profile columns', async () => {
+    const registerSource = readFileSync(path.resolve(root, '..', '..', 'lib', 'register_page.dart'), 'utf8');
+    const mappings = [
+      ['uid', 'firebase_uid', 'text'], ['name', 'full_name', 'text'], ['email', 'email', 'text'],
+      ['studentId', 'student_id', 'text'], ['department', 'department', 'text'],
+      ['profileCompleted', 'profile_completed', 'bool'], ['role', 'role', 'account_role'],
+      ['createdAt', 'created_at', 'timestamptz'], ['updatedAt', 'updated_at', 'timestamptz'],
+      ['employeeId', 'employee_id', 'text'], ['specialization', 'specialization', 'text'],
+      ['status', 'teacher_status', 'teacher_status'],
+    ];
+    for (const [source] of mappings) assert.match(registerSource, new RegExp(`['"]${source}['"]\\s*:`), `Firestore field ${source} is absent from current registration writes`);
+    const columnNames = mappings.map(([, target]) => target);
+    const columnList = [...new Set(columnNames)].map(name => `'${name}'`).join(',');
+    const actual = sql(`select string_agg(column_name || ':' || udt_name, ',' order by column_name) from information_schema.columns where table_schema='schoolivia' and table_name='profiles' and column_name in (${columnList})`);
+    const expected = [...new Map(mappings.map(([, target, type]) => [target, `${target}:${type}`])).values()].sort().join(',');
+    assert.equal(actual, expected, 'Firestore profile field target names or PostgreSQL types changed');
+  });
   const studentBody = { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' };
   await check('valid roster-bound student registration via PostgREST', async () => {
     const response = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: studentBody });
