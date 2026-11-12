@@ -91,6 +91,46 @@ test('valid Firebase ID token plus OTP ticket yields a short-lived Supabase JWT 
   assert.equal(Object.hasOwn(claims, 'service_role'), false);
 });
 
+test('supports ES256 Supabase signing keys used by PostgREST JWK configurations', async () => {
+  const { publicKey: supabasePublicKey, privateKey: supabasePrivateKey } = generateKeyPairSync('ec', {
+    namedCurve: 'prime256v1',
+    publicKeyEncoding: { format: 'jwk' },
+    privateKeyEncoding: { format: 'jwk' },
+  });
+  const kid = 'schoolivia-test-es256';
+  const es256Worker = createExchangeWorker({
+    now: () => now,
+    fetchImpl: async () => new Response(JSON.stringify({ keys: [{ ...publicKey, kid: 'test-kid', alg: 'RS256', use: 'sig' }] }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    }),
+  });
+  const response = await es256Worker.fetch(new Request('https://test.invalid/exchange', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ firebase_id_token: firebaseToken(), otp_ticket: await ticket() }),
+  }), {
+    ...env,
+    SUPABASE_JWT_SECRET: undefined,
+    SUPABASE_JWT_PRIVATE_JWK: JSON.stringify(supabasePrivateKey),
+    SUPABASE_JWT_KID: kid,
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  const [header, payload, signature] = body.access_token.split('.');
+  const decodedHeader = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+  assert.equal(decodedHeader.alg, 'ES256');
+  assert.equal(decodedHeader.kid, kid);
+  const verifyKey = await crypto.subtle.importKey('jwk', supabasePublicKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+  const valid = await crypto.subtle.verify(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    verifyKey,
+    Buffer.from(signature, 'base64url'),
+    new TextEncoder().encode(`${header}.${payload}`),
+  );
+  assert.equal(valid, true);
+  assert.equal(jwtPayload(body.access_token).sub, 'firebase-test-uid');
+});
+
 test('rejects a ticket bound to another email', async () => {
   const response = await exchange({ otpTicket: await ticket({ email: 'other@example.invalid' }) });
   assert.equal(response.status, 401);
