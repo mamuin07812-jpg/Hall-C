@@ -80,9 +80,7 @@ jobs:
             docker logs "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" 2>&1 | tail -n 80
             exit 1
           fi
-          PGPASSWORD="$POSTGRES_PASSWORD" psql -X -v ON_ERROR_STOP=1 
-            "host=127.0.0.1 port=18432 user=supabase_admin dbname=postgres" 
-            -c "CREATE DATABASE \"$SCHOOLIVIA_TEST_DB\" TEMPLATE template0"
+          PGPASSWORD="$POSTGRES_PASSWORD" psql -X -v ON_ERROR_STOP=1 "host=127.0.0.1 port=18432 user=supabase_admin dbname=postgres" -c "CREATE DATABASE \\"$SCHOOLIVIA_TEST_DB\\" TEMPLATE template0"
           container_ip=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
           [[ "$container_ip" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]] || { echo 'Unexpected PostgreSQL container address' >&2; exit 1; }
           echo "SCHOOLIVIA_EXPECTED_PG_SERVER_ADDRESS=$container_ip" >> "$GITHUB_ENV"
