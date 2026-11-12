@@ -1,5 +1,16 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Native PostgreSQL CI result — 2026-11-12 15:14 Iraq time
+
+- Run `43215900715` completed successfully against the PR #7 merge commit `6582ce6542a7884d22ff6d3056435d364d180335`.
+- Registration contract and connection/migration guard suite: 14/14 passed, including the new assertion that great-grandfather name is stored separately from family name.
+- Disposable native Supabase PostgreSQL 17 + PostgREST 14.18 integration: 16/16 passed. Covered schema exposure, RPC signatures, Firestore key mapping, roster-bound student registration, idempotent retry, rejection cases, signed OTP proof purpose/expiry/one-time use, rollback/retry, concurrency, teacher pending status, no self-approval, student/teacher RLS isolation, and expired sessions.
+- Ephemeral DB pre-migration backup hash: `45815675722dfc10f78f65a0d6b4a39c6610bd5a118c87263c9579edf05d9902`. Temporary PostgreSQL container was removed by the workflow.
+- PR #7 remains OPEN, unmerged, and mergeable. Do not merge without explicit user instruction.
+- Source discrepancy independently rechecked on `main`: `lib/register_page.dart` has one shared `_nameController`/Full Name field for student and teacher. User explicitly confirms their student form has four fields and teacher form one. Treat the inspected main/PR source as stale or not the live source; no Flutter changes made. Need locate the correct student registration source/version before integration.
+- No migration applied to any user DB; no Flutter/Admin/Firebase/OTP Worker/production or protected local service changed.
+
+
 ## Latest continuation update — 2026-11-12 15:11 Iraq time
 
 - User confirmed student registration captures four separate fields: first name, father's name, grandfather's name, and great-grandfather's name. The fourth field is specifically the great-grandfather's name, not family name. Teacher registration remains one full-name field.
