@@ -1,5 +1,14 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Academic completion + roster preflight — CI PASS (2026-11-12)
+
+- Added four native PostgREST checks for `complete_student_registration`: correct gender/stage/hall succeeds; mismatched stage, mismatched hall, and unsupported gender are rejected without marking the profile complete. PostgREST returns HTTP 204 for the successful void RPC.
+- Teacher specialization is free text in the captured UI. Migration 005 maps the 10 known English/Arabic labels to canonical English and rejects unknown values before consuming OTP proof.
+- Added blank CSV template `supabase/firebase_rebuild/approved_roster_template.csv`, offline validator `otp_proof_test/validate_roster_csv.mjs`, seven validator tests, and usage/safety instructions in `ROSTER_IMPORT_PREFLIGHT.md`. No records are uploaded or imported.
+- GitHub Actions run **43218575411** passed on commit `6fea180cf9b96b405e5c7f05cefe24be43dc1cf4`: 23 static/CSV tests and 23 native PostgreSQL 17 + PostgREST 14.18 HTTP checks. Pre-migration disposable DB dump SHA-256: `1a27d355ebdab1ceb820d5fb5ed284f65885e58d1b12c46a85e38ddcea6ad866`. Disposable DB/container were removed successfully.
+- No local/production Supabase, Firebase, OTP Worker, Flutter, or Admin runtime was changed. PR #7 remains open/unmerged.
+
+
 ## Registration contract and roster-import tooling follow-up — 2026-11-12
 
 - Corrected the academic-completion compatibility review: the captured `register_page.dart` signup completion explicitly requires and writes gender, stage, and hall/group, so these values match `complete_student_registration(p_gender,p_stage,p_hall)`. The separate `account_gate.dart` fallback/profile path is distinct and still has no Supabase RPC; the test name/report now identify it accurately.
