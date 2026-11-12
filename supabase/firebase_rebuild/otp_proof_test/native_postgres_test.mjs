@@ -151,8 +151,8 @@ try {
   const teacherJwt = token('native-teacher-uid', 'teacher-native@example.invalid', { purpose: 'teacher.register' });
   await check('PostgREST exposes schoolivia while keeping the OTP schema private', async () => {
     assert.deepEqual(pgrstEnv.PGRST_DB_SCHEMAS.split(',').map(value => value.trim()), ['schoolivia']);
-    const exposed = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: {} });
-    assert.equal(exposed.status, 400, `schoolivia RPC route is not exposed or has an unexpected signature: ${exposed.status}`);
+    const exposed = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' } });
+    assert.equal(exposed.status, 200, `schoolivia RPC route is not exposed or has an unexpected signature: ${exposed.status}`);
     const privateLedger = await http('/otp_proof_uses?select=jti', { jwt: studentJwt });
     assert.equal(privateLedger.status, 404, 'internal OTP ledger must not be reachable through PostgREST');
   });
