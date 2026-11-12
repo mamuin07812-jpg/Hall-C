@@ -48,3 +48,9 @@ These edits were discovered in the working tree and preserved. They have not bee
 - Added `otp_proof_test/registration_contract.test.mjs` with six independent static contract tests covering RPC argument names/order/types/returns, final JSON import fields and validation, actual Firestore signup keys and verification flow, academic completion shape/roster matching, Admin roster-import absence, and the unresolved great-grandfather/family-name overlap.
 - The new local test passed 6/6, and `node --check` passed. These are new checks; no previous successful suite was rerun.
 - The test is wired into the native PostgreSQL workflow and its path filter. This intentionally makes a fresh PR workflow run necessary to verify the newly added check; no SQL migration or app behavior was changed. CI result is pending for the next PR head.
+## Registration contract CI result
+
+- PR #7 commit `63522e4cbd74d0e71b97d2558e2ee266eda25d0d` completed GitHub Actions run `43214017213` with `success`.
+- The workflow ran the new `registration_contract.test.mjs` in its Node test command, followed by the native PostgreSQL 17 migrations and PostgREST integration checks; the overall job passed.
+- The contract suite passed locally 6/6. No app or migration code changed. The green CI run is associated with `63522e4`; subsequent checkpoint-only documentation does not need another run.
+- Main remaining blockers are documented in `REGISTRATION_COMPATIBILITY_20261112.md`: no Supabase bridge/proof in Flutter, no approved-roster import UI, the student name/gender contract gaps, roster-dependent academic matching, and the unresolved surname-slot semantics.
