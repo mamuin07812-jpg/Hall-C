@@ -11,6 +11,7 @@ test('allows only a disposable loopback database target on the dedicated port ra
 
 test('accepts only the explicitly expected private address of an ephemeral CI database container', () => {
   assert.equal(assertExpectedServerAddress('172.18.0.3', '172.18.0.3'), true);
+  assert.equal(assertExpectedServerAddress('172.18.0.3/32', '172.18.0.3'), true);
   assert.throws(() => assertExpectedServerAddress('172.18.0.4', '172.18.0.3'));
   assert.throws(() => assertExpectedServerAddress('8.8.8.8', '8.8.8.8'));
   assert.throws(() => assertExpectedServerAddress('10.0.0.1'));
