@@ -36,3 +36,9 @@ These edits were discovered in the working tree and preserved. They have not bee
 - The native runner mapping assertion now contains exactly the twelve specified Firestore profile fields and their PostgreSQL column/type mappings.
 - `register_page.dart` currently writes to Firestore and does not call a Supabase RPC. The student UI collects one full name, whereas `register_student` takes four name arguments. This is a real integration mismatch for separate handling; this patch does not bind Flutter to Supabase or change its fields, migrations, or RPC signatures.
 - Latest attempted PR validation must be checked by commit SHA. Run 43175741765 was the known source failure. Do not rerun unrelated successful suites.
+## Verified PR #7 result
+
+- Commit `8581975aa4af891800395bacdda7f995946c1567` is on the existing PR #7 head branch `fix/native-postgres-runner-temp-20261112`.
+- GitHub Actions run `43208244691` completed with `success` for `Disposable Supabase PostgreSQL 17 migrations 001–005`.
+- The runner installed PostgreSQL 17 client tools, started only its disposable Supabase PostgreSQL 17 container, provisioned synthetic PostgREST roles, downloaded pinned PostgREST 14.18, and passed `Execute native migrations and PostgreSQL/PostgREST checks`; its disposable container cleanup also passed.
+- No migrations were applied to a protected database. No Flutter/Admin changes, production deployment, or merge occurred.
