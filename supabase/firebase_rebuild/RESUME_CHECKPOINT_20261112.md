@@ -1,5 +1,14 @@
 # Schoolivia UN resume checkpoint — 2026-11-12
 
+## Required student-name validation — CI PASS (2026-11-12)
+
+- Final candidate migration `005_otp_proof_registration.sql` now rejects a blank or whitespace-only value in any of the four student name components: first, father, grandfather, great-grandfather.
+- Added a static registration-contract assertion and native PostgREST HTTP cases that omit each field in turn. Each case is rejected, creates no profile, and does not consume the OTP proof `jti`.
+- GitHub Actions run **43216763874** passed on commit `18a9c237fb56b1ab87c67849da89ffec4891dd0f`.
+- Results: 15/15 static guard/contract tests; 17/17 disposable PostgreSQL 17 + PostgREST 14.18 HTTP checks. The temporary database backup SHA-256 was `54c888d9c68a6bd9a1be0e053ed584efbb2c4c5519c550c75114498d5c498317`; temporary PostgreSQL container was removed successfully.
+- No migration was applied to the local self-hosted Supabase, production Supabase, Firebase, Flutter, or Admin. PR #7 remains open and unmerged.
+
+
 ## Registration source located — 2026-11-12 15:17 Iraq time
 
 - Searched prior project terminal captures in the user's Library and found an actual `C:\\ClassroomHub\\lib\\register_page.dart` excerpt. At lines 370–399 it uses four student controllers: `_firstNameController`, `_fatherNameController`, `_grandfatherNameController`, `_greatGrandfatherNameController`; joins them into `name`; and writes the four individual Firestore keys. At lines 498–520 the teacher registration uses one `_nameController` full name.
