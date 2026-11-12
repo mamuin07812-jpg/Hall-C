@@ -104,7 +104,7 @@ jobs:
           postgres://authenticator:$POSTGREST_TEST_PASSWORD@127.0.0.1:18432/$SCHOOLIVIA_TEST_DB
           EOF
           PGSERVICEFILE="$service_file" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
-            "create role anon nologin; create role authenticated nologin; create role service_role nologin; create role authenticator login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
+            "create role authenticator login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
           echo "PGSERVICEFILE=$service_file" >> "$GITHUB_ENV"
           echo "SCHOOLIVIA_TEST_POSTGREST_URI_FILE=$postgrest_uri_file" >> "$GITHUB_ENV"
 
