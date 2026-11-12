@@ -101,14 +101,14 @@ test('current Firestore registration writes keep their actual student and teache
   assert.match(gate, /refreshedUser\.emailVerified/);
 });
 
-test('student academic completion captures stage and group in Firestore, but not gender or Supabase RPC', () => {
+test('account-gate fallback setup is distinct from signup completion and has no Supabase RPC', () => {
   const setupStart = gate.indexOf('class _StudentSetupPageState');
   const setupEnd = gate.indexOf(String.fromCharCode(10) + 'class ', setupStart + 1);
   const setup = gate.slice(setupStart, setupEnd < 0 ? undefined : setupEnd);
   assert.match(setup, /'stage':\s*_selectedStage/);
   assert.match(setup, /'group':\s*_selectedGroup/);
   assert.match(setup, /'profileCompleted':\s*true/);
-  assert.doesNotMatch(setup, /['"]gender['"]\s*:/);
+  assert.doesNotMatch(setup, /['"]gender['"]\s*:/, 'this is the separate account-gate fallback, not register_page signup completion');
   assert.doesNotMatch(setup, /\.rpc\s*\(/i);
 
   const completion = functionDefinition(sql005, 'complete_student_registration').sql;
