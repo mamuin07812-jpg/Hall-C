@@ -12,10 +12,10 @@ This is a **test-only** Worker fixture. It is not the deployed `schoolivia-un-ot
 
 ## Local/CI test
 
-The GitHub Actions workflow installs Miniflare temporarily and runs:
+The GitHub Actions workflow installs pinned Miniflare 4.20260730.0 temporarily in an isolated `$RUNNER_TEMP` prefix and runs:
 
 ```sh
-npm install --no-save --package-lock=false miniflare@3
+npm install --prefix "$RUNNER_TEMP/schoolivia-miniflare" --no-save --package-lock=false miniflare@4.20260730.0
 node --test supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs
 ```
 
