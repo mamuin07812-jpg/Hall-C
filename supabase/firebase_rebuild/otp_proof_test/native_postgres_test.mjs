@@ -185,6 +185,20 @@ try {
     assert.equal(actual, expected, 'Firestore profile field target names or PostgreSQL types changed');
   });
   const studentBody = { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' };
+  await check('student registration rejects each missing name component before consuming OTP proof', async () => {
+    const requiredNames = ['p_first_name', 'p_father_name', 'p_grandfather_name', 'p_great_grandfather_name'];
+    for (const [index, field] of requiredNames.entries()) {
+      const uid = `native-empty-name-${index}`;
+      const response = await http('/rpc/register_student', {
+        method: 'POST',
+        jwt: token(uid, 'student-native@example.invalid', { purpose: 'student.register' }),
+        body: { ...studentBody, [field]: '   ' },
+      });
+      assert.ok(response.status >= 400, `${field} must be required; got ${response.status}`);
+      assert.equal(sql(`select count(*) from schoolivia.profiles where firebase_uid='${uid}'`), '0');
+      assert.equal(sql(`select count(*) from schoolivia_internal.otp_proof_uses where firebase_uid='${uid}'`), '0', 'invalid names must not consume OTP proof');
+    }
+  });
   await check('valid roster-bound student registration via PostgREST', async () => {
     const response = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: studentBody });
     assert.equal(response.status, 200, await response.text());
