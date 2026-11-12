@@ -55,6 +55,21 @@ test('student and teacher RPC argument names, order, types, and return types sta
   assert.equal(functionDefinition(sql005, 'complete_student_registration').result, 'void');
 });
 
+test('teacher specialization accepts only known English/Arabic aliases and stores canonical English', () => {
+  const registration = functionDefinition(sql005, 'register_teacher').sql;
+  for (const [alias, canonical] of [
+    ['الشعر', 'Poetry'], ['المحادثة', 'Conversation'], ['الإرشاد', 'Guidance'],
+    ['الارشاد', 'Guidance'], ['العقائد', 'Theology'], ['عقائد', 'Theology'],
+    ['طرائق التدريس', 'Teaching Methods'], ['المسرحية', 'Drama'],
+    ['علم اللغة', 'Linguistics'], ['النحو', 'Grammar'],
+    ['الكتابة الأكاديمية', 'Academic Writing'], ['الرواية', 'Novel'],
+  ]) {
+    assert.ok(registration.includes(`when '${alias}' then '${canonical}'`), `missing specialization alias: ${alias}`);
+  }
+  assert.match(registration, /unsupported teacher specialization/);
+  assert.match(registration, /p_specialization,\s*v_specialization|v_specialization,\s*'English Language'/);
+});
+
 test('student registration requires every one of the four name components on the server', () => {
   const registration = functionDefinition(sql005, 'register_student').sql;
   for (const parameter of ['p_first_name', 'p_father_name', 'p_grandfather_name', 'p_great_grandfather_name']) {
