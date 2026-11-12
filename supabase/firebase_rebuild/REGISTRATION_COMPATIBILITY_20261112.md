@@ -18,7 +18,7 @@ Scope: read-only comparison of the current Flutter/Admin registration flow with 
 
 ## Name-column mapping decision and correction
 
-The user confirmed that the fourth student field means **great-grandfather's name**, not family name. The four student fields map to `first_name`, `father_name`, `grandfather_name`, and `great_grandfather_name`. The teacher's single full-name field remains `p_name`.
+The user confirmed that the fourth student field means **great-grandfather's name**, not family name. The four student fields map to `first_name`, `father_name`, `grandfather_name`, and `great_grandfather_name`. The teacher's single full-name field remains `p_name`. The final registration RPC now rejects any blank/whitespace-only student name component server-side; the native HTTP suite checks each of the four omissions and verifies rejection happens before the OTP `jti` is consumed.
 
 The candidate SQL registration inserts in migrations 001, 003, 004, and 005 previously copied `p_great_grandfather_name` into both `profiles.great_grandfather_name` and `profiles.family_name`. This was incorrect because the schema and `update_own_profile` treat `family_name` as a separate field. The candidate migrations have now been corrected: registration writes only `great_grandfather_name`; `family_name` remains unset until separately provided. No migration has been applied to any database.
 
@@ -30,6 +30,6 @@ The candidate SQL registration inserts in migrations 001, 003, 004, and 005 prev
 4. Current Firebase email-link verification is not the staged Worker OTP proof. Migration 005 requires purpose/UID/email-bound proof claims and atomically consumes their `jti`.
 5. Student setup has no gender input, while the SQL completion RPC requires one. Stage and group must also match the roster; the current Firestore/Admin edits can diverge from it.
 6. Teacher specialization is free text in the UI but restricted to a fixed SQL allow-list; the app-side values and server validation need an agreed contract.
-7. The name semantics are resolved: `great_grandfather_name` is the fourth student name component; `family_name` is separate. The prior local-project capture confirms the four student fields but shows legacy Firestore duplication into `familyName`. Candidate SQL mappings keep the fields separate and passed disposable native PostgreSQL validation.
+7. The name semantics are resolved: `great_grandfather_name` is the fourth student name component; `family_name` is separate. The prior local-project capture confirms the four student fields but shows legacy Firestore duplication into `familyName`. Candidate SQL mappings keep the fields separate. The final RPC also enforces all four names as required, with native HTTP regression coverage pending the current CI run.
 
 The contract tests in `registration_contract.test.mjs` pin the current app-side writes and SQL signatures/requirements, including these deliberate mismatches. Their purpose is to expose contract drift, not to claim application integration.
