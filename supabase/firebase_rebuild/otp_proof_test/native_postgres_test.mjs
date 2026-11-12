@@ -144,7 +144,7 @@ async function waitReady() {
   throw new Error('isolated PostgREST did not start; output suppressed');
 }
 try {
-  await sql("insert into schoolivia.approved_students(university_id,email,full_name,department,stage,hall,enabled) values ('NATIVE-001','student-native@example.invalid','Synthetic Student','English Language','First Stage','A',true),('NATIVE-002','student-two-native@example.invalid','Synthetic Student Two','English Language','First Stage','B',true),('NATIVE-003','student-replay-one@example.invalid','Synthetic Replay One','English Language','First Stage','C',true),('NATIVE-004','student-replay-two@example.invalid','Synthetic Replay Two','English Language','First Stage','D',true)");
+  await sql("insert into schoolivia.approved_students(university_id,email,full_name,department,stage,hall,enabled) values ('NATIVE-001','student-native@example.invalid','Synthetic Student','English Language','First Stage','A',true),('NATIVE-002','student-two-native@example.invalid','Synthetic Student Two','English Language','First Stage','B',true),('NATIVE-003','student-replay-one@example.invalid','Synthetic Replay One','English Language','First Stage','C',true),('NATIVE-004','student-replay-two@example.invalid','Synthetic Replay Two','English Language','First Stage','D',true),('NATIVE-005','student-completion-stage@example.invalid','Synthetic Completion Stage','English Language','First Stage','A',true),('NATIVE-006','student-completion-hall@example.invalid','Synthetic Completion Hall','English Language','Second Stage','D',true),('NATIVE-007','student-completion-gender@example.invalid','Synthetic Completion Gender','English Language','Third Stage','C',true)");
   server = spawn(postgrestBin, [], { env: pgrstEnv, stdio: 'ignore', windowsHide: true });
   await waitReady();
   const studentJwt = token('native-student-uid', 'student-native@example.invalid', { purpose: 'student.register' });
@@ -206,6 +206,41 @@ try {
   await check('student registration retry is idempotent', async () => {
     const first = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: studentBody });
     assert.equal(first.status, 200, await first.text());
+  });
+  await check('student academic completion accepts roster-matched gender, stage, and hall', async () => {
+    const response = await http('/rpc/complete_student_registration', {
+      method: 'POST', jwt: studentJwt,
+      body: { p_gender: 'Female', p_stage: 'First Stage', p_hall: 'A' },
+    });
+    assert.equal(response.status, 200, await response.text());
+    assert.equal(sql("select gender || '|' || stage || '|' || hall || '|' || profile_completed::text from schoolivia.profiles where firebase_uid='native-student-uid'"), 'Female|First Stage|A|true');
+  });
+  await check('student academic completion rejects a stage that differs from the approved roster', async () => {
+    const uid = 'native-completion-stage';
+    const jwt = token(uid, 'student-completion-stage@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-005' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Male', p_stage: 'Second Stage', p_hall: 'A' } });
+    assert.ok(response.status >= 400, `roster stage mismatch must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
+  });
+  await check('student academic completion rejects a hall that differs from the approved roster', async () => {
+    const uid = 'native-completion-hall';
+    const jwt = token(uid, 'student-completion-hall@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-006' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Male', p_stage: 'Second Stage', p_hall: 'A' } });
+    assert.ok(response.status >= 400, `roster hall mismatch must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
+  });
+  await check('student academic completion rejects unsupported gender values', async () => {
+    const uid = 'native-completion-gender';
+    const jwt = token(uid, 'student-completion-gender@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-007' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Unknown', p_stage: 'Third Stage', p_hall: 'C' } });
+    assert.ok(response.status >= 400, `unsupported gender must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
   });
   await check('wrong email and unapproved student are rejected', async () => {
     const mismatch = await http('/rpc/register_student', { method: 'POST', jwt: token('native-mismatch','wrong-native@example.invalid',{purpose:'student.register'}), body: studentBody });
