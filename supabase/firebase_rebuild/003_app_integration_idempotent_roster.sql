@@ -73,14 +73,14 @@ begin
 
   insert into schoolivia.profiles (
     firebase_uid, role, first_name, father_name, grandfather_name,
-    great_grandfather_name, family_name, full_name, email, student_id,
+    great_grandfather_name, full_name, email, student_id,
     department, stage, hall, email_verified, email_verified_at,
     registration_status, profile_completed
   ) values (
     v_uid, 'student', nullif(trim(p_first_name), ''),
     nullif(trim(p_father_name), ''), nullif(trim(p_grandfather_name), ''),
     nullif(trim(p_great_grandfather_name), ''),
-    nullif(trim(p_great_grandfather_name), ''), v_roster.full_name, v_email,
+    v_roster.full_name, v_email,
     v_roster.university_id, v_roster.department, v_roster.stage, v_roster.hall,
     true, now(), 'academic_pending', false
   )

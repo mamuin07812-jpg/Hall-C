@@ -12,6 +12,16 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_challenge_purpose_migration.sql'
+      - 'supabase/firebase_rebuild/otp_proof_test/OTP_PROOF_D1_FIXTURE.md'
+      - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
   pull_request:
     paths:
@@ -22,6 +32,16 @@ on:
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs'
       - 'supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs'
+      - 'supabase/firebase_rebuild/otp_proof_test/otp_challenge_purpose_migration.sql'
+      - 'supabase/firebase_rebuild/otp_proof_test/OTP_PROOF_D1_FIXTURE.md'
+      - 'supabase/firebase_rebuild/approved_roster_template.csv'
       - '.github/workflows/schoolivia-native-migrations.yml'
 
 permissions:
@@ -40,12 +60,10 @@ jobs:
       SCHOOLIVIA_TEST_DB: schoolivia_test_${{ github.run_id }}_${{ github.run_attempt }}
       POSTGRES_PASSWORD: schoolivia-ci-ephemeral-only-not-a-secret
       POSTGREST_TEST_PASSWORD: ci-authenticator-only
-      PGSERVICEFILE: ${{ runner.temp }}/schoolivia-ci.pg_service.conf
-      SCHOOLIVIA_TEST_POSTGREST_URI_FILE: ${{ runner.temp }}/schoolivia-ci.postgrest-uri
       SCHOOLIVIA_TEST_PG_SERVICE: schoolivia_ci
       SCHOOLIVIA_TEST_POSTGREST_PORT: '18433'
       SCHOOLIVIA_PSQL: psql
-      SCHOOLIVIA_PG_DUMP: pg_dump
+      SCHOOLIVIA_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
     steps:
       - uses: actions/checkout@v4
 
@@ -65,23 +83,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --detach --rm \
+          docker run --detach \
             --name "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --publish 127.0.0.1:18432:18432 \
             --env POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-            --env POSTGRES_USER=postgres \
-            --env POSTGRES_DB="$SCHOOLIVIA_TEST_DB" \
+            --env POSTGRES_USER=supabase_admin \
+            --env POSTGRES_DB=postgres \
             supabase/postgres:17.6.1.136 \
             -c port=18432 -c listen_addresses='*'
           ready=false
           for attempt in $(seq 1 60); do
-            if pg_isready --host 127.0.0.1 --port 18432 --username postgres --dbname "$SCHOOLIVIA_TEST_DB"; then ready=true; break; fi
+            if pg_isready --host 127.0.0.1 --port 18432 --username supabase_admin --dbname "$SCHOOLIVIA_TEST_DB"; then ready=true; break; fi
             sleep 2
           done
           if [[ "$ready" != true ]]; then
             docker logs "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" 2>&1 | tail -n 80
             exit 1
           fi
+          PGPASSWORD="$POSTGRES_PASSWORD" psql -X -v ON_ERROR_STOP=1 "host=127.0.0.1 port=18432 user=supabase_admin dbname=postgres" -c "CREATE DATABASE $SCHOOLIVIA_TEST_DB TEMPLATE template0"
           container_ip=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "schoolivia-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
           [[ "$container_ip" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.) ]] || { echo 'Unexpected PostgreSQL container address' >&2; exit 1; }
           echo "SCHOOLIVIA_EXPECTED_PG_SERVER_ADDRESS=$container_ip" >> "$GITHUB_ENV"
@@ -92,19 +111,23 @@ jobs:
           set -euo pipefail
           chmod 700 "$RUNNER_TEMP"
           umask 077
-          cat > "$PGSERVICEFILE" <<EOF
+          service_file="$RUNNER_TEMP/schoolivia-ci.pg_service.conf"
+          postgrest_uri_file="$RUNNER_TEMP/schoolivia-ci.postgrest-uri"
+          cat > "$service_file" <<EOF
           [schoolivia_ci]
           host=127.0.0.1
           port=18432
           dbname=$SCHOOLIVIA_TEST_DB
-          user=postgres
+          user=supabase_admin
           password=$POSTGRES_PASSWORD
           EOF
-          cat > "$SCHOOLIVIA_TEST_POSTGREST_URI_FILE" <<EOF
+          cat > "$postgrest_uri_file" <<EOF
           postgres://authenticator:$POSTGREST_TEST_PASSWORD@127.0.0.1:18432/$SCHOOLIVIA_TEST_DB
           EOF
-          PGSERVICEFILE="$PGSERVICEFILE" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
-            "create role anon nologin; create role authenticated nologin; create role service_role nologin; create role authenticator login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
+          PGSERVICEFILE="$service_file" PGSERVICE=schoolivia_ci psql -X -v ON_ERROR_STOP=1 -c \
+            "alter role authenticator with login noinherit password '$POSTGREST_TEST_PASSWORD'; grant anon, authenticated, service_role to authenticator;"
+          echo "PGSERVICEFILE=$service_file" >> "$GITHUB_ENV"
+          echo "SCHOOLIVIA_TEST_POSTGREST_URI_FILE=$postgrest_uri_file" >> "$GITHUB_ENV"
 
       - name: Download pinned PostgREST 14.18
         shell: bash
@@ -119,6 +142,32 @@ jobs:
           chmod 700 "$RUNNER_TEMP/postgrest/postgrest"
           echo "SCHOOLIVIA_POSTGREST=$RUNNER_TEMP/postgrest/postgrest" >> "$GITHUB_ENV"
 
+      - name: Set up Node.js 22 for the isolated Worker test runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install isolated pinned Miniflare D1 test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          miniflare_root="$RUNNER_TEMP/schoolivia-miniflare"
+          npm install --prefix "$miniflare_root" --no-save --package-lock=false miniflare@4.20260730.0
+          test ! -e supabase/firebase_rebuild/otp_proof_test/node_modules
+          ln -s "$miniflare_root/node_modules" supabase/firebase_rebuild/otp_proof_test/node_modules
+
+      - name: Execute D1-backed OTP proof integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test supabase/firebase_rebuild/otp_proof_test/otp_proof_worker_d1_draft.test.mjs
+
+      - name: Remove temporary Miniflare dependency link
+        if: always()
+        shell: bash
+        run: |
+          rm -f supabase/firebase_rebuild/otp_proof_test/node_modules
+
       - name: Execute native migrations and PostgreSQL/PostgREST checks
         shell: bash
         run: |
@@ -127,7 +176,10 @@ jobs:
             supabase/firebase_rebuild/otp_proof_test/connection_file_guard.test.mjs \
             supabase/firebase_rebuild/otp_proof_test/native_connection_guard.test.mjs \
             supabase/firebase_rebuild/otp_proof_test/native_postgres_preflight.test.mjs \
-            supabase/firebase_rebuild/otp_proof_test/native_test_migrations.test.mjs
+            supabase/firebase_rebuild/otp_proof_test/native_test_migrations.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/registration_contract.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/validate_roster_csv.test.mjs \
+            supabase/firebase_rebuild/otp_proof_test/otp_proof_exchange_worker_draft.test.mjs
           node supabase/firebase_rebuild/otp_proof_test/native_postgres_test.mjs
 
       - name: Stop only the disposable PostgreSQL container

@@ -65,7 +65,15 @@ assert.equal(decodeURIComponent(parsed.username), 'authenticator', 'PostgREST mu
 
 const backupDir = await mkdtemp(path.join(tmpdir(), 'schoolivia-native-pre-migration-'));
 const dumpFile = path.join(backupDir, `${database}.dump`);
-run(pgDump, ['--format=custom', '--file', dumpFile]);
+const dumpResult = spawnSync(pgDump, ['--format=custom', '--file', dumpFile], { encoding: 'utf8', windowsHide: true, env });
+if (dumpResult.status !== 0) {
+  let diagnostic = `${dumpResult.stderr ?? ''}${dumpResult.stdout ?? ''}`.trim();
+  for (const secret of [serviceTarget.password, parsed.password, process.env.POSTGRES_PASSWORD, process.env.POSTGREST_TEST_PASSWORD]) {
+    if (secret) diagnostic = diagnostic.replaceAll(secret, '[REDACTED]');
+  }
+  diagnostic = diagnostic.slice(0, 1000);
+  throw new Error(`pg_dump failed (exit ${dumpResult.status}); ${diagnostic || 'no diagnostic output'}`);
+}
 const backupHash = secretFreeFileHash(dumpFile);
 assert.equal(secretFreeFileHash(dumpFile), backupHash, 'pre-change dump checksum verification failed');
 await rm(backupDir, { recursive: true, force: true });
@@ -96,6 +104,7 @@ assert.ok(Number(sql("select count(*) from pg_class where relnamespace='schooliv
 assert.ok(Number(sql("select count(*) from pg_policies where schemaname='schoolivia'")) >= 39, 'candidate RLS policy set is incomplete');
 assert.equal(sql("select data_type from information_schema.columns where table_schema='schoolivia_internal' and table_name='otp_proof_uses' and column_name='jti'"), 'text', 'replay key must preserve opaque text jti values');
 assert.equal(sql("select count(*) from pg_indexes where schemaname='schoolivia_internal' and tablename='otp_proof_uses' and indexdef ilike '%UNIQUE%'"), '1', 'replay ledger must have a unique jti key');
+assert.equal(sql("select bool_and(not has_schema_privilege(rolname,'schoolivia_internal','USAGE')) from pg_roles where rolname in ('anon','authenticated','service_role')"), 't', 'API roles must not have usage on the private schema');
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const jwk = { ...publicKey.export({ format: 'jwk' }), alg: 'ES256', use: 'sig', kid: 'schoolivia-native-test' };
@@ -135,12 +144,61 @@ async function waitReady() {
   throw new Error('isolated PostgREST did not start; output suppressed');
 }
 try {
-  await sql("insert into schoolivia.approved_students(university_id,email,full_name,department,stage,hall,enabled) values ('NATIVE-001','student-native@example.invalid','Synthetic Student','English Language','First Stage','A',true),('NATIVE-002','student-two-native@example.invalid','Synthetic Student Two','English Language','First Stage','B',true),('NATIVE-003','student-replay-one@example.invalid','Synthetic Replay One','English Language','First Stage','C',true),('NATIVE-004','student-replay-two@example.invalid','Synthetic Replay Two','English Language','First Stage','D',true)");
+  await sql("insert into schoolivia.approved_students(university_id,email,full_name,department,stage,hall,enabled) values ('NATIVE-001','student-native@example.invalid','Synthetic Student','English Language','First Stage','A',true),('NATIVE-002','student-two-native@example.invalid','Synthetic Student Two','English Language','First Stage','B',true),('NATIVE-003','student-replay-one@example.invalid','Synthetic Replay One','English Language','First Stage','C',true),('NATIVE-004','student-replay-two@example.invalid','Synthetic Replay Two','English Language','First Stage','D',true),('NATIVE-005','student-completion-stage@example.invalid','Synthetic Completion Stage','English Language','First Stage','A',true),('NATIVE-006','student-completion-hall@example.invalid','Synthetic Completion Hall','English Language','Second Stage','D',true),('NATIVE-007','student-completion-gender@example.invalid','Synthetic Completion Gender','English Language','Third Stage','C',true)");
   server = spawn(postgrestBin, [], { env: pgrstEnv, stdio: 'ignore', windowsHide: true });
   await waitReady();
   const studentJwt = token('native-student-uid', 'student-native@example.invalid', { purpose: 'student.register' });
   const teacherJwt = token('native-teacher-uid', 'teacher-native@example.invalid', { purpose: 'teacher.register' });
+  await check('PostgREST exposes schoolivia while keeping the OTP schema private', async () => {
+    assert.deepEqual(pgrstEnv.PGRST_DB_SCHEMAS.split(',').map(value => value.trim()), ['schoolivia']);
+    const exposed = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' } });
+    assert.equal(exposed.status, 200, `schoolivia RPC route is not exposed or has an unexpected signature: ${exposed.status}`);
+    const privateLedger = await http('/otp_proof_uses?select=jti', { jwt: studentJwt });
+    assert.equal(privateLedger.status, 404, 'internal OTP ledger must not be reachable through PostgREST');
+  });
+  await check('candidate RPC names, argument types, and result types remain stable', async () => {
+    const signatures = [
+      ["schoolivia.register_student(text,text,text,text,text)", 'p_first_name text, p_father_name text, p_grandfather_name text, p_great_grandfather_name text, p_student_id text|uuid'],
+      ["schoolivia.register_teacher(text,text,text)", 'p_name text, p_employee_id text, p_specialization text|uuid'],
+      ["schoolivia.complete_student_registration(text,text,text)", 'p_gender text, p_stage text, p_hall text|void'],
+      ["schoolivia.import_approved_students(jsonb)", 'p_rows jsonb|jsonb'],
+    ];
+    for (const [signature, expected] of signatures) {
+      assert.equal(sql(`select pg_get_function_arguments('${signature}'::regprocedure) || '|' || pg_get_function_result('${signature}'::regprocedure)`), expected, `${signature} contract changed`);
+    }
+  });
+  await check('current Firestore signup keys map to typed Schoolivia profile columns', async () => {
+    const registerSource = readFileSync(path.resolve(root, '..', '..', 'lib', 'register_page.dart'), 'utf8');
+    const mappings = [
+      ['uid', 'firebase_uid', 'text'], ['name', 'full_name', 'text'], ['email', 'email', 'text'],
+      ['studentId', 'student_id', 'text'], ['department', 'department', 'text'],
+      ['profileCompleted', 'profile_completed', 'bool'], ['role', 'role', 'account_role'],
+      ['createdAt', 'created_at', 'timestamptz'], ['updatedAt', 'updated_at', 'timestamptz'],
+      ['employeeId', 'employee_id', 'text'], ['specialization', 'specialization', 'text'],
+      ['status', 'teacher_status', 'teacher_status'],
+    ];
+    for (const [source] of mappings) assert.match(registerSource, new RegExp(`['"]${source}['"]\\s*:`), `Firestore field ${source} is absent from current registration writes`);
+    const columnNames = mappings.map(([, target]) => target);
+    const columnList = [...new Set(columnNames)].map(name => `'${name}'`).join(',');
+    const actual = sql(`select string_agg(column_name || ':' || udt_name, ',' order by column_name) from information_schema.columns where table_schema='schoolivia' and table_name='profiles' and column_name in (${columnList})`);
+    const expected = [...new Map(mappings.map(([, target, type]) => [target, `${target}:${type}`])).values()].sort().join(',');
+    assert.equal(actual, expected, 'Firestore profile field target names or PostgreSQL types changed');
+  });
   const studentBody = { p_first_name: 'Synthetic', p_father_name: 'Native', p_grandfather_name: 'Test', p_great_grandfather_name: 'User', p_student_id: 'NATIVE-001' };
+  await check('student registration rejects each missing name component before consuming OTP proof', async () => {
+    const requiredNames = ['p_first_name', 'p_father_name', 'p_grandfather_name', 'p_great_grandfather_name'];
+    for (const [index, field] of requiredNames.entries()) {
+      const uid = `native-empty-name-${index}`;
+      const response = await http('/rpc/register_student', {
+        method: 'POST',
+        jwt: token(uid, 'student-native@example.invalid', { purpose: 'student.register' }),
+        body: { ...studentBody, [field]: '   ' },
+      });
+      assert.ok(response.status >= 400, `${field} must be required; got ${response.status}`);
+      assert.equal(sql(`select count(*) from schoolivia.profiles where firebase_uid='${uid}'`), '0');
+      assert.equal(sql(`select count(*) from schoolivia_internal.otp_proof_uses where firebase_uid='${uid}'`), '0', 'invalid names must not consume OTP proof');
+    }
+  });
   await check('valid roster-bound student registration via PostgREST', async () => {
     const response = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: studentBody });
     assert.equal(response.status, 200, await response.text());
@@ -148,6 +206,41 @@ try {
   await check('student registration retry is idempotent', async () => {
     const first = await http('/rpc/register_student', { method: 'POST', jwt: studentJwt, body: studentBody });
     assert.equal(first.status, 200, await first.text());
+  });
+  await check('student academic completion accepts roster-matched gender, stage, and hall', async () => {
+    const response = await http('/rpc/complete_student_registration', {
+      method: 'POST', jwt: studentJwt,
+      body: { p_gender: 'Female', p_stage: 'First Stage', p_hall: 'A' },
+    });
+    assert.equal(response.status, 204, 'void PostgREST RPC should return HTTP 204');
+    assert.equal(sql("select gender || '|' || stage || '|' || hall || '|' || profile_completed::text from schoolivia.profiles where firebase_uid='native-student-uid'"), 'Female|First Stage|A|true');
+  });
+  await check('student academic completion rejects a stage that differs from the approved roster', async () => {
+    const uid = 'native-completion-stage';
+    const jwt = token(uid, 'student-completion-stage@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-005' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Male', p_stage: 'Second Stage', p_hall: 'A' } });
+    assert.ok(response.status >= 400, `roster stage mismatch must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
+  });
+  await check('student academic completion rejects a hall that differs from the approved roster', async () => {
+    const uid = 'native-completion-hall';
+    const jwt = token(uid, 'student-completion-hall@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-006' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Male', p_stage: 'Second Stage', p_hall: 'A' } });
+    assert.ok(response.status >= 400, `roster hall mismatch must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
+  });
+  await check('student academic completion rejects unsupported gender values', async () => {
+    const uid = 'native-completion-gender';
+    const jwt = token(uid, 'student-completion-gender@example.invalid', { purpose: 'student.register' });
+    const created = await http('/rpc/register_student', { method: 'POST', jwt, body: { ...studentBody, p_student_id: 'NATIVE-007' } });
+    assert.equal(created.status, 200, await created.text());
+    const response = await http('/rpc/complete_student_registration', { method: 'POST', jwt, body: { p_gender: 'Unknown', p_stage: 'Third Stage', p_hall: 'C' } });
+    assert.ok(response.status >= 400, `unsupported gender must be rejected; got ${response.status}`);
+    assert.equal(sql(`select profile_completed::text from schoolivia.profiles where firebase_uid='${uid}'`), 'false');
   });
   await check('wrong email and unapproved student are rejected', async () => {
     const mismatch = await http('/rpc/register_student', { method: 'POST', jwt: token('native-mismatch','wrong-native@example.invalid',{purpose:'student.register'}), body: studentBody });
@@ -210,6 +303,29 @@ try {
     const response = await http('/rpc/register_teacher', { method: 'POST', jwt: teacherJwt, body: { p_name:'Synthetic Teacher',p_employee_id:'NATIVE-T-001',p_specialization:'Linguistics' } });
     assert.equal(response.status, 200, await response.text());
     assert.equal(sql("select teacher_status::text from schoolivia.profiles where firebase_uid='native-teacher-uid'"), 'pending');
+  });
+  await check('Arabic teacher specialization is normalized to its canonical English value', async () => {
+    const uid = 'native-arabic-teacher';
+    const response = await http('/rpc/register_teacher', {
+      method: 'POST',
+      jwt: token(uid, 'arabic-teacher-native@example.invalid', { purpose: 'teacher.register' }),
+      body: { p_name: 'Synthetic Arabic Teacher', p_employee_id: 'NATIVE-T-AR', p_specialization: 'النحو' },
+    });
+    assert.equal(response.status, 200, await response.text());
+    assert.equal(sql(`select specialization from schoolivia.profiles where firebase_uid='${uid}'`), 'Grammar');
+    assert.equal(sql(`select teacher_status::text from schoolivia.profiles where firebase_uid='${uid}'`), 'pending');
+  });
+  await check('unknown teacher specialization is rejected without consuming OTP proof', async () => {
+    const uid = 'native-unknown-specialization';
+    const jti = 'native-unknown-specialization-jti';
+    const response = await http('/rpc/register_teacher', {
+      method: 'POST',
+      jwt: token(uid, 'unknown-specialization@example.invalid', { purpose: 'teacher.register', jti }),
+      body: { p_name: 'Synthetic Unknown Teacher', p_employee_id: 'NATIVE-T-BAD', p_specialization: 'Unknown Subject' },
+    });
+    assert.ok(response.status >= 400, `unsupported specialization must be rejected; got ${response.status}`);
+    assert.equal(sql(`select count(*) from schoolivia.profiles where firebase_uid='${uid}'`), '0');
+    assert.equal(sql(`select count(*) from schoolivia_internal.otp_proof_uses where jti='${jti}'`), '0');
   });
   await check('teacher cannot self-approve through the Admin lifecycle RPC', async () => {
     const teacherId = sql("select id::text from schoolivia.profiles where firebase_uid='native-teacher-uid'");
